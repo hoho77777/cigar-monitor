@@ -6,6 +6,11 @@ title Build CigarMonitor
 echo [build] Generating version info...
 python gen_version_info.py
 
+if not exist "assets\cigar.ico" (
+  echo [build] Assets missing, generating icons...
+  python make_icons.py
+)
+
 echo [build] PyInstaller packaging...
 python -m PyInstaller --noconfirm --onefile --windowed --name CigarMonitor ^
   --icon "assets\cigar.ico" ^
