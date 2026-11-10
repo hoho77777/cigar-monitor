@@ -108,7 +108,7 @@ function renderProducts() {
   const root = $("product-list");
   root.innerHTML = list.length
     ? list.map(prodRow).join("")
-    : `<div class="empty-hint">${productCache.length ? "没有符合筛选条件的监控项" : "暂无监控项，添加一个雪茄网址开始监控"}</div>`;
+    : `<div class="empty-hint">${productCache.length ? "没有符合筛选条件的监控项" : "暂无监控项，添加一个雪茄商品网址开始监控"}</div>`;
   const active = filterState.q.trim() || filterState.status !== "all" || filterState.tags.size;
   $("filter-meta").textContent = active ? `筛选结果：${list.length} / ${productCache.length} 项` : "";
   hideHighlight();
