@@ -34,7 +34,7 @@ def send_email(settings, subject, html_body, recipients=None):
     if security == "ssl":
         client = smtplib.SMTP_SSL(host, port, timeout=30)
     else:
-        client = smtplib(host, port, timeout=30)
+        client = smtplib.SMTP(host, port, timeout=30)
         if security == "tls":
             client.starttls()
     try:
