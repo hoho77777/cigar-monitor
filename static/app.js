@@ -1,466 +1,438 @@
-// 雪茄库存监控前端逻辑
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-
+/* 雪茄库存监控前端逻辑（原生 JS，无外部依赖） */
 const STATUS_LABEL = { in_stock: "有货", out_of_stock: "缺货", unknown: "未知" };
+const CAT_NAMES = { brand: "品牌", line: "型号" };
+let productCache = [];
+const filterState = { q: "", status: "all", tags: new Set() };
 
-let products = [];
-let settings = {};
-let filterState = { keyword: "", tag: "", inStockOnly: false };
+const $ = (id) => document.getElementById(id);
 
-// ---------------- 通用提示 ----------------
-function showToast(text, ms = 2600) {
-  const t = $("#toast");
-  t.textContent = text;
-  t.classList.add("show");
-  clearTimeout(showToast._timer);
-  showToast._timer = setTimeout(() => t.classList.remove("show"), ms);
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function setHint(id, text, ok = true) {
-  const el = $(id);
-  el.textContent = text;
-  el.className = "hint " + (ok ? "ok" : "err");
-}
-
-async function api(url, options = {}) {
-  const resp = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  const data = await resp.json();
-  if (!resp.ok || data.error) throw new Error(data.error || `HTTP ${resp.status}`);
+async function api(url, opts = {}) {
+  const r = await fetch(url, { headers: { "Content-Type": "application/json" }, ...opts });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `请求失败 (${r.status})`);
   return data;
 }
 
-// ---------------- 版本号 ----------------
-async function loadVersion() {
+function toast(msg, isErr = false) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (isErr ? " err" : "");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => (t.className = "toast"), 3200);
+}
+
+/* ---------------- 时段问候语 ---------------- */
+function setGreeting() {
+  const h = new Date().getHours();
+  let g;
+  if (h >= 5 && h < 11) g = "早上好";
+  else if (h >= 11 && h < 14) g = "中午好";
+  else if (h >= 14 && h < 18) g = "下午好";
+  else if (h >= 18 && h < 22) g = "晚上好";
+  else g = "夜深了";
+  $("greeting").textContent = g;
+}
+
+/* ---------------- 概览 ---------------- */
+async function loadOverview() {
   try {
-    const data = await api("/api/version");
-    $("#app-version").textContent = "v" + data.version;
-  } catch (e) {}
+    const o = await api("/api/overview");
+    $("st-total").textContent = o.total;
+    $("st-enabled").textContent = o.enabled;
+    $("st-in").textContent = o.in_stock;
+    $("st-out").textContent = o.out_of_stock;
+    $("st-unknown").textContent = o.unknown;
+    $("next-run").textContent = "下次检查：" + (o.next_run || "-");
+  } catch (e) { /* ignore */ }
 }
 
-// ---------------- 概览 ----------------
-function renderOverview() {
-  const total = products.length;
-  const enabled = products.filter((p) => p.enabled).length;
-  const inStock = products.filter((p) => p.status === "in_stock").length;
-  const outStock = products.filter((p) => p.status === "out_of_stock").length;
-  const unknown = products.filter((p) => p.status === "unknown").length;
-  $("#st-total").textContent = total;
-  $("#st-enabled").textContent = enabled;
-  $("#st-in").textContent = inStock;
-  $("#st-out").textContent = outStock;
-  $("#st-unknown").textContent = unknown;
+/* ---------------- 线性图标 ---------------- */
+const ICONS = {
+  check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`,
+  delete: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>`,
+};
+
+function fmtTime(s) {
+  if (!s) return "-";
+  const m = String(s).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  return m ? `${m[2]}-${m[3]} ${m[4]}:${m[5]}` : s;
 }
 
-// ---------------- 筛选 ----------------
-function buildTagFilter() {
-  const tags = new Set();
-  products.forEach((p) => {
-    (p.tags || []).forEach((t) => tags.add(t));
-  });
-  const wrap = $("#tag-filter");
-  wrap.innerHTML = "";
-  Array.from(tags).sort().forEach((t) => {
-    const chip = document.createElement("button");
-    chip.className = "tag-chip" + (filterState.tag === t ? " active" : "");
-    chip.textContent = t;
-    chip.onclick = () => {
-      filterState.tag = filterState.tag === t ? "" : t;
-      renderProducts();
-    };
-    wrap.appendChild(chip);
-  });
+/* ---------------- 平铺商品行 ---------------- */
+function prodRow(p) {
+  return `
+  <div class="prod-row" data-pid="${p.id}">
+    <div class="cell c-prod">
+      <div class="prod-text">
+        <span class="prod-name" title="${esc(p.name)}">${esc(p.name)}</span>
+        <a class="prod-url" href="${esc(p.url)}" target="_blank" title="${esc(p.url)}">${esc(p.url)}</a>
+      </div>
+    </div>
+    <div class="cell c-status">
+      <span class="badge ${p.status}">${STATUS_LABEL[p.status] || "未知"}</span>
+      <span class="status-detail" title="${esc(p.status_text || "")}">${esc(p.status_text || "")}</span>
+    </div>
+    <div class="cell c-time">${esc(fmtTime(p.last_checked))}</div>
+    <div class="cell c-time">${esc(fmtTime(p.last_notified))}</div>
+    <div class="cell c-switch">
+      <label class="switch">
+        <input type="checkbox" class="sw-enabled" data-id="${p.id}" ${p.enabled ? "checked" : ""}>
+        <span class="slider-sw"></span>
+      </label>
+    </div>
+    <div class="cell c-ops">
+      <button class="icon-btn" data-action="check" data-id="${p.id}" title="立即检查" aria-label="立即检查">${ICONS.check}</button>
+      <button class="icon-btn danger" data-action="delete" data-id="${p.id}" title="删除" aria-label="删除">${ICONS.delete}</button>
+    </div>
+  </div>`;
 }
 
-function filteredProducts() {
-  const kw = filterState.keyword.trim().toLowerCase();
-  return products.filter((p) => {
-    if (filterState.inStockOnly && p.status !== "in_stock") return false;
-    if (filterState.tag && !(p.tags || []).includes(filterState.tag)) return false;
-    if (kw) {
-      const hay = `${p.name} ${p.url}`.toLowerCase();
-      if (!hay.includes(kw)) return false;
-    }
+/* ---------------- 筛选 ---------------- */
+function filtered() {
+  const q = filterState.q.trim().toLowerCase();
+  return productCache.filter((p) => {
+    if (q && !`${p.name} ${p.url}`.toLowerCase().includes(q)) return false;
+    if (filterState.status !== "all" && p.status !== filterState.status) return false;
+    if (filterState.tags.size && !p.tags.some((t) => filterState.tags.has(t))) return false;
     return true;
   });
 }
 
-// ---------------- 商品列表 ----------------
-const grid = $("#monitor-grid");
-const highlight = $("#hover-highlight");
-
-function moveHighlight(row) {
-  const g = grid.getBoundingClientRect();
-  const r = row.getBoundingClientRect();
-  highlight.style.top = (r.top - g.top) + "px";
-  highlight.style.height = r.height + "px";
-  highlight.classList.add("on");
-}
-
-function hideHighlight() {
-  highlight.classList.remove("on");
-}
-
 function renderProducts() {
+  const list = filtered();
+  const root = $("product-list");
+  root.innerHTML = list.length
+    ? list.map(prodRow).join("")
+    : `<div class="empty-hint">${productCache.length ? "没有符合筛选条件的监控项" : "暂无监控项，添加一个雪茄商品网址开始监控"}</div>`;
+  const active = filterState.q.trim() || filterState.status !== "all" || filterState.tags.size;
+  $("filter-meta").textContent = active ? `筛选结果：${list.length} / ${productCache.length} 项` : "";
   hideHighlight();
-  buildTagFilter();
-  const list = $("#product-list");
-  list.innerHTML = "";
-  const shown = filteredProducts();
-
-  shown.forEach((p) => {
-    const row = document.createElement("div");
-    row.className = "prod-row";
-    row.dataset.id = p.id;
-
-    const badge = `<span class="badge ${p.status}">${STATUS_LABEL[p.status] || "未知"}</span>`;
-    const detail = p.status_text ? `<span class="status-detail">${p.status_text}</span>` : "";
-
-    row.innerHTML = `
-      <div class="cell cell-first">
-        <div class="prod-name">${p.name}</div>
-        <a class="prod-url" href="${p.url}" target="_blank" rel="noopener">${p.url}</a>
-      </div>
-      <div class="cell">${badge}${detail}</div>
-      <div class="cell">${p.last_checked || "-"}</div>
-      <div class="cell">${p.last_notified || "-"}</div>
-      <div class="cell cell-center">
-        <label class="switch">
-          <input type="checkbox" data-toggle="${p.id}" ${p.enabled ? "checked" : ""}>
-          <span class="slider"></span>
-        </label>
-      </div>
-      <div class="cell cell-last">
-        <button class="icon-btn" data-check="${p.id}" title="立即检查">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-        </button>
-        <button class="icon-btn danger" data-del="${p.id}" title="删除">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-        </button>
-      </div>`;
-    list.appendChild(row);
-  });
-
-  $("#filter-meta").textContent = `共 ${products.length} 项，当前显示 ${shown.length} 项`;
-  renderOverview();
 }
 
-// 事件委托：行悬停（单一连续背景）
-grid.addEventListener("mouseover", (e) => {
-  const row = e.target.closest(".prod-row");
-  if (row && grid.contains(row)) moveHighlight(row);
+function buildTagFilter() {
+  const counts = {};
+  for (const p of productCache)
+    for (const t of p.tags) counts[t] = (counts[t] || 0) + 1;
+  const tags = [...new Set(productCache.flatMap((p) => p.tag_buckets.brand || []))].sort();
+  $("tag-filter").innerHTML = tags.map((t) =>
+    `<button class="chip ${filterState.tags.has(t) ? "active" : ""}" data-tag="${esc(t)}">${esc(t)}<span class="chip-n">${counts[t]}</span></button>`).join("");
+}
+
+async function loadProducts() {
+  productCache = await api("/api/products");
+  buildTagFilter();
+  renderProducts();
+}
+
+/* ---------------- 列表事件 ---------------- */
+$("product-list").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const id = btn.dataset.id;
+  try {
+    if (btn.dataset.action === "delete") {
+      if (!confirm("确定删除该监控项及其日志？")) return;
+      await api(`/api/products/${id}`, { method: "DELETE" });
+      toast("已删除");
+      refreshAll();
+    } else if (btn.dataset.action === "check") {
+      btn.disabled = true;
+      const r = await api(`/api/products/${id}/check`, { method: "POST" });
+      toast(r.notified ? "检查完成，已发送有货通知邮件" : `检查完成：${STATUS_LABEL[r.status]}`);
+      refreshAll();
+    }
+  } catch (err) { toast(err.message, true); }
 });
-grid.addEventListener("mouseout", (e) => {
+
+$("product-list").addEventListener("change", async (e) => {
+  if (!e.target.classList.contains("sw-enabled")) return;
+  try {
+    await api(`/api/products/${e.target.dataset.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ enabled: e.target.checked }),
+    });
+    loadOverview();
+  } catch (err) { toast(err.message, true); }
+});
+
+/* 行 hover：用单一连续背景层定位，避免多单元格拼接出现缝隙 */
+let hoveredRow = null;
+function moveHighlight(row) {
+  const hl = $("hover-highlight");
+  const gridRect = $("monitor-grid").getBoundingClientRect();
+  const cellRect = row.querySelector(".cell").getBoundingClientRect();
+  hl.style.top = (cellRect.top - gridRect.top) + "px";
+  hl.style.height = cellRect.height + "px";
+  hl.classList.add("on");
+}
+function hideHighlight() {
+  hoveredRow = null;
+  $("hover-highlight").classList.remove("on");
+}
+$("product-list").addEventListener("mouseover", (e) => {
+  const row = e.target.closest(".prod-row");
+  if (!row) return;
+  if (row !== hoveredRow) { hoveredRow = row; moveHighlight(row); }
+});
+$("product-list").addEventListener("mouseout", (e) => {
   const row = e.target.closest(".prod-row");
   if (row && !row.contains(e.relatedTarget)) hideHighlight();
 });
-window.addEventListener("scroll", hideHighlight, true);
-window.addEventListener("resize", hideHighlight);
+window.addEventListener("resize", () => { if (hoveredRow) moveHighlight(hoveredRow); });
+window.addEventListener("scroll", () => { if (hoveredRow) moveHighlight(hoveredRow); }, true);
 
-// ---------------- 数据加载 ----------------
-async function loadProducts() {
-  products = await api("/api/products");
-  renderProducts();
-}
-
-// ---------------- 添加 ----------------
-$("#btn-add").onclick = async () => {
-  const url = $("#add-url").value.trim();
-  if (!url) return setHint("#add-msg", "请先粘贴商品网址", false);
-  setHint("#add-msg", "正在添加并检查，请稍候...");
-  try {
-    const r = await api("/api/products", { method: "POST", body: JSON.stringify({ url }) });
-    $("#add-url").value = "";
-    setHint("#add-msg", `已添加：${r.name}，当前状态：${STATUS_LABEL[r.status] || r.status}`);
-    await loadProducts();
-  } catch (e) {
-    setHint("#add-msg", e.message, false);
-  }
-};
-
-// ---------------- 列表操作（事件委托） ----------------
-$("#product-list").addEventListener("click", async (e) => {
-  const checkBtn = e.target.closest("[data-check]");
-  const delBtn = e.target.closest("[data-del]");
-  if (checkBtn) {
-    const id = checkBtn.dataset.check;
-    showToast("正在检查...");
-    try {
-      const r = await api(`/api/products/${id}/check`, { method: "POST" });
-      showToast(`${r.name}：${STATUS_LABEL[r.status] || r.status}`);
-      await loadProducts();
-    } catch (err) {
-      showToast(err.message);
-    }
-  } else if (delBtn) {
-    const id = delBtn.dataset.del;
-    if (!confirm("确定删除该监控项及其日志？")) return;
-    try {
-      await api(`/api/products/${id}`, { method: "DELETE" });
-      await loadProducts();
-      showToast("已删除");
-    } catch (err) {
-      showToast(err.message);
-    }
-  }
-});
-
-// 启用开关
-$("#product-list").addEventListener("change", async (e) => {
-  const toggle = e.target.closest("[data-toggle]");
-  if (!toggle) return;
-  const id = toggle.dataset.toggle;
-  try {
-    await api(`/api/products/${id}`, {
-      method: "PUT",
-      body: JSON.stringify({ enabled: toggle.checked ? 1 : 0 }),
-    });
-    await loadProducts();
-  } catch (err) {
-    showToast(err.message);
-  }
-});
-
-// ---------------- 全部检查 ----------------
-$("#btn-check-all").onclick = async () => {
-  showToast("正在检查全部监控项...");
-  try {
-    const r = await api("/api/check-all", { method: "POST" });
-    showToast(`检查完成：${r.checked} 项，有货 ${r.in_stock} 项`);
-    await loadProducts();
-  } catch (e) {
-    showToast(e.message);
-  }
-};
-
-// ---------------- 筛选面板 ----------------
-$("#btn-filter").onclick = () => {
-  $("#filter-panel").classList.toggle("open");
-};
-
-$("#filter-search").addEventListener("input", (e) => {
-  filterState.keyword = e.target.value;
+/* ---------------- 筛选事件 ---------------- */
+$("filter-search").addEventListener("input", (e) => {
+  filterState.q = e.target.value;
   renderProducts();
 });
 
-$("#filter-search-btn").onclick = () => {
-  showToast(filterState.keyword ? `搜索：${filterState.keyword}` : "请输入关键词");
-};
+$("filter-search-btn").addEventListener("click", () => $("filter-search").focus());
 
-$("#stock-only").addEventListener("change", (e) => {
-  filterState.inStockOnly = e.target.checked;
+/* 筛选面板展开/收起 */
+$("btn-filter").addEventListener("click", () => {
+  const panel = $("filter-panel");
+  const open = panel.classList.toggle("open");
+  $("btn-filter").classList.toggle("active", open);
+});
+
+/* 铃铛：展开邮箱设置并滚动过去 */
+$("btn-email").addEventListener("click", () => {
+  const card = $("card-settings");
+  card.classList.remove("collapsed");
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+$("stock-only").addEventListener("change", (e) => {
+  filterState.status = e.target.checked ? "in_stock" : "all";
   renderProducts();
 });
 
-// ---------------- 检查更新 ----------------
-$("#btn-check-update").onclick = async () => {
-  showToast("正在检查更新...");
-  try {
-    const r = await api("/api/check-update", { method: "POST" });
-    if (!r.update) {
-      showToast("当前已是最新版本");
-      return;
-    }
-    const u = r.update;
-    const notes = u.notes ? `\n更新说明：${u.notes}` : "";
-    const ok = confirm(`发现新版本 v${u.latest}\n当前版本：v${u.current}${notes}\n\n是否立即下载并自动更新？`);
-    if (!ok) return;
-    showToast("正在下载更新，完成后将自动重启...");
-    const res = await api("/api/apply-update", {
-      method: "POST",
-      body: JSON.stringify({ download_url: u.download_url }),
-    });
-    showToast(res.message || "更新已启动");
-  } catch (e) {
-    showToast("更新失败：" + e.message);
-  }
-};
+$("tag-filter").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  const tag = chip.dataset.tag;
+  if (filterState.tags.has(tag)) filterState.tags.delete(tag);
+  else filterState.tags.add(tag);
+  chip.classList.toggle("active");
+  renderProducts();
+});
 
-// ---------------- 设置 ----------------
-function fillPresetSelect() {
-  const sel = $("#set-preset");
-  sel.innerHTML = "";
-  Object.entries(window.SMTP_PRESETS || {}).forEach(([key, p]) => {
-    const opt = document.createElement("option");
-    opt.value = key;
-    opt.textContent = p.label;
-    sel.appendChild(opt);
-  });
-}
+/* ---------------- 卡片折叠（邮箱/日志） ---------------- */
+document.addEventListener("click", (e) => {
+  const head = e.target.closest(".collapsible-head");
+  if (!head || e.target.closest("button")) return;
+  head.parentElement.classList.toggle("collapsed");
+});
 
-async function loadSettings() {
-  settings = await api("/api/settings");
-  const presets = await api("/api/settings/presets");
-  window.SMTP_PRESETS = presets;
-  fillPresetSelect();
-  $("#set-preset").value = settings.smtp_preset;
-  $("#set-host").value = settings.smtp_host;
-  $("#set-port").value = settings.smtp_port;
-  $("#set-security").value = settings.smtp_security;
-  $("#set-user").value = settings.smtp_user;
-  $("#set-pass").value = settings.smtp_pass;
-  $("#set-to").value = settings.mail_to;
-  $("#set-from-name").value = settings.mail_from_name;
-  $("#set-interval").value = settings.check_interval;
-  $("#set-notify-mode").value = settings.notify_mode;
-}
-
-$("#set-preset").onchange = (e) => {
-  const p = window.SMTP_PRESETS[e.target.value];
-  if (!p) return;
-  $("#set-host").value = p.host;
-  $("#set-port").value = p.port;
-  $("#set-security").value = p.security;
-};
-
-function collectSettings() {
-  return {
-    smtp_preset: $("#set-preset").value,
-    smtp_host: $("#set-host").value,
-    smtp_port: $("#set-port").value,
-    smtp_security: $("#set-security").value,
-    smtp_user: $("#set-user").value,
-    smtp_pass: $("#set-pass").value,
-    mail_to: $("#set-to").value,
-    mail_from_name: $("#set-from-name").value,
-    check_interval: $("#set-interval").value,
-    notify_mode: $("#set-notify-mode").value,
-  };
-}
-
-$("#btn-save-settings").onclick = async () => {
-  try {
-    await api("/api/settings", { method: "POST", body: JSON.stringify(collectSettings()) });
-    setHint("#settings-msg", "设置已保存");
-    await loadSettings();
-    await loadProducts();
-  } catch (e) {
-    setHint("#settings-msg", e.message, false);
-  }
-};
-
-$("#btn-test-email").onclick = async () => {
-  setHint("#settings-msg", "正在发送测试邮件...");
-  try {
-    const r = await api("/api/test-email", { method: "POST" });
-    setHint("#settings-msg", `测试邮件已发送至 ${r.sent_to.join(", ")}`);
-  } catch (e) {
-    setHint("#settings-msg", e.message, false);
-  }
-};
-
-// ---------------- 日志 ----------------
-async function loadLogs() {
-  const logs = await api("/api/logs?limit=50");
-  const nameMap = Object.fromEntries(products.map((p) => [p.id, p.name]));
-  $("#log-rows").innerHTML = logs
-    .map((l) => {
-      const label = STATUS_LABEL[l.status] || l.status;
-      return `<tr><td>${l.checked_at}</td><td>${nameMap[l.product_id] || "#" + l.product_id}</td>
-      <td><span class="badge ${l.status}">${label}</span></td><td>${l.http_code || "-"}</td>
-      <td>${l.detail || ""}</td></tr>`;
-    })
-    .join("");
-}
-
-$("#btn-refresh-logs").onclick = async () => {
-  await loadLogs();
-  showToast("日志已刷新");
-};
-
-// ---------------- 英文地址 ----------------
-let addressData = {};
+/* ---------------- 英文地址弹窗 ---------------- */
+const ADDR_FIELDS = ["line1", "line2", "country", "state", "city", "zip"];
 
 async function openAddressModal() {
-  try {
-    addressData = await api("/api/address");
-  } catch (e) {
-    addressData = {};
-  }
-  $("#addr-line1").value = addressData.line1 || "";
-  $("#addr-line2").value = addressData.line2 || "";
-  $("#addr-country").value = addressData.country || "";
-  $("#addr-state").value = addressData.state || "";
-  $("#addr-city").value = addressData.city || "";
-  $("#addr-zip").value = addressData.zip || "";
-  const modal = $("#address-modal");
-  modal.classList.add("show");
-  modal.setAttribute("aria-hidden", "false");
+  const addr = await api("/api/address");
+  for (const f of ADDR_FIELDS) $("addr-" + f).value = addr[f] || "";
+  const m = $("address-modal");
+  m.classList.add("show");
+  m.setAttribute("aria-hidden", "false");
 }
 
 function closeAddressModal() {
-  const modal = $("#address-modal");
-  modal.classList.remove("show");
-  modal.setAttribute("aria-hidden", "true");
+  const m = $("address-modal");
+  m.classList.remove("show");
+  m.setAttribute("aria-hidden", "true");
 }
 
-$("#btn-address").onclick = openAddressModal;
-$("#addr-close").onclick = closeAddressModal;
-$("#addr-cancel").onclick = closeAddressModal;
-
-$("#addr-save").onclick = async () => {
-  const payload = {
-    line1: $("#addr-line1").value,
-    line2: $("#addr-line2").value,
-    country: $("#addr-country").value,
-    state: $("#addr-state").value,
-    city: $("#addr-city").value,
-    zip: $("#addr-zip").value,
-  };
-  try {
-    await api("/api/address", { method: "POST", body: JSON.stringify(payload) });
-    closeAddressModal();
-    showToast("英文地址已保存");
-  } catch (e) {
-    showToast("保存失败：" + e.message);
-  }
-};
-
-// 点击遮罩关闭
-$("#address-modal").addEventListener("click", (e) => {
-  if (e.target === $("#address-modal")) closeAddressModal();
+$("btn-address").addEventListener("click", openAddressModal);
+$("addr-close").addEventListener("click", closeAddressModal);
+$("addr-cancel").addEventListener("click", closeAddressModal);
+$("address-modal").addEventListener("click", (e) => {
+  if (e.target.id === "address-modal") closeAddressModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeAddressModal();
 });
 
-// ---------------- 折叠面板（邮箱/日志） ----------------
-function initCollapsible(cardId) {
-  const card = $(cardId);
-  const head = card.querySelector(".collapsible-head");
-  head.onclick = (e) => {
-    if (e.target.closest("button")) return; // 不拦截头部按钮
-    card.classList.toggle("collapsed");
+$("addr-save").addEventListener("click", async () => {
+  const body = {};
+  for (const f of ADDR_FIELDS) body[f] = $("addr-" + f).value;
+  try {
+    await api("/api/address", { method: "POST", body: JSON.stringify(body) });
+    toast("英文地址已保存");
+    closeAddressModal();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+/* ---------------- 添加 ---------------- */
+$("btn-add").addEventListener("click", async () => {
+  const url = $("add-url").value.trim();
+  const msg = $("add-msg");
+  if (!url) { msg.textContent = "请输入网址"; msg.className = "hint error"; return; }
+  $("btn-add").disabled = true;
+  msg.textContent = "正在抓取并检查，请稍候..."; msg.className = "hint";
+  try {
+    await api("/api/products", { method: "POST", body: JSON.stringify({ url }) });
+    $("add-url").value = "";
+    msg.textContent = "添加成功，已完成首次检查"; msg.className = "hint ok";
+    refreshAll();
+  } catch (err) { msg.textContent = err.message; msg.className = "hint error"; }
+  $("btn-add").disabled = false;
+});
+
+/* ---------------- 设置 ---------------- */
+async function loadSettings() {
+  const { settings, presets } = await api("/api/settings");
+  const presetSel = $("set-preset");
+  presetSel.innerHTML = Object.entries(presets)
+    .map(([k, v]) => `<option value="${k}" ${k === settings.smtp_preset ? "selected" : ""}>${v.label}</option>`)
+    .join("");
+  $("set-host").value = settings.smtp_host;
+  $("set-port").value = settings.smtp_port;
+  $("set-security").value = settings.smtp_security;
+  $("set-user").value = settings.smtp_user;
+  $("set-pass").value = settings.smtp_pass;
+  $("set-to").value = settings.mail_to;
+  $("set-from-name").value = settings.mail_from_name;
+  $("set-interval").value = settings.check_interval;
+  $("set-notify-mode").value = settings.notify_mode;
+}
+
+$("set-preset").addEventListener("change", async () => {
+  const key = $("set-preset").value;
+  const { presets } = await api("/api/settings");
+  const p = presets[key];
+  if (!p || key === "custom") return;
+  $("set-host").value = p.host;
+  $("set-port").value = p.port;
+  $("set-security").value = p.security;
+});
+
+function collectSettings() {
+  return {
+    smtp_preset: $("set-preset").value,
+    smtp_host: $("set-host").value.trim(),
+    smtp_port: $("set-port").value.trim(),
+    smtp_security: $("set-security").value,
+    smtp_user: $("set-user").value.trim(),
+    smtp_pass: $("set-pass").value,
+    mail_to: $("set-to").value.trim(),
+    mail_from_name: $("set-from-name").value.trim(),
+    check_interval: $("set-interval").value,
+    notify_mode: $("set-notify-mode").value,
   };
 }
 
-// 邮箱图标快捷打开设置卡片
-$("#btn-email").onclick = () => {
-  $("#card-settings").classList.remove("collapsed");
-  $("#card-settings").scrollIntoView({ behavior: "smooth" });
-};
+$("btn-save-settings").addEventListener("click", async () => {
+  const msg = $("settings-msg");
+  try {
+    await api("/api/settings", { method: "POST", body: JSON.stringify(collectSettings()) });
+    msg.textContent = "设置已保存，调度已更新"; msg.className = "hint ok";
+    loadOverview();
+  } catch (err) { msg.textContent = err.message; msg.className = "hint error"; }
+});
 
-// ---------------- 下次检查倒计时 ----------------
-function tickNextRun() {
-  const el = $("#next-run");
-  if (!window._schedulerInfo) return;
-  const interval = window._schedulerInfo.interval || 300;
-  if (window._nextAt == null) window._nextAt = Date.now() + interval * 1000;
-  const left = Math.max(0, Math.round((window._nextAt - Date.now()) / 1000));
-  const mm = String(Math.floor(left / 60)).padStart(2, "0");
-  const ss = String(left % 60).padStart(2, "0");
-  el.textContent = `下次检查：${mm}:${ss}`;
+$("btn-test-email").addEventListener("click", async () => {
+  const msg = $("settings-msg");
+  msg.textContent = "正在发送测试邮件..."; msg.className = "hint";
+  try {
+    const r = await api("/api/test-email", { method: "POST" });
+    msg.textContent = "测试邮件已发送，请查收"; msg.className = "hint ok";
+  } catch (err) {
+    msg.textContent = err.message; msg.className = "hint error";
+  }
+});
+
+/* ---------------- 日志 ---------------- */
+async function loadLogs() {
+  const logs = await api("/api/logs?limit=50");
+  const nameMap = Object.fromEntries(productCache.map((p) => [p.id, p.name]));
+  const tbody = $("log-rows");
+  if (!logs.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="hint" style="text-align:center;padding:20px">暂无日志</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = logs.map((l) => `
+    <tr>
+      <td style="white-space:nowrap">${esc(l.checked_at)}</td>
+      <td>${esc(nameMap[l.product_id] || `#${l.product_id}`)}</td>
+      <td><span class="badge ${l.status}">${STATUS_LABEL[l.status] || "未知"}</span></td>
+      <td>${esc(l.http_code ?? "-")}</td>
+      <td class="hint">${esc(l.detail || "")}</td>
+    </tr>`).join("");
 }
-setInterval(tickNextRun, 1000);
 
-// ---------------- 初始化 ----------------
-(async function init() {
-  initCollapsible("#card-settings");
-  initCollapsible("#card-logs");
-  await loadVersion();
+$("btn-refresh-logs").addEventListener("click", () => loadLogs());
+
+$("btn-check-all").addEventListener("click", async () => {
+  $("btn-check-all").disabled = true;
+  try {
+    await api("/api/check-all", { method: "POST" });
+    toast("全部检查完成");
+    refreshAll();
+  } catch (err) { toast(err.message, true); }
+  $("btn-check-all").disabled = false;
+});
+
+/* ---------------- 版本与更新 ---------------- */
+async function loadVersion() {
+  try {
+    const data = await api("/api/version");
+    $("app-version").textContent = "v" + data.version;
+  } catch (err) {
+    $("app-version").textContent = "";
+  }
+}
+
+$("btn-check-update").addEventListener("click", async () => {
+  const btn = $("btn-check-update");
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "检查中...";
+  try {
+    const res = await api("/api/check-update", { method: "POST" });
+    if (!res.update) {
+      toast(`当前已是最新版本 v${res.current}`);
+    } else {
+      const info = res.update;
+      const notes = info.notes ? `\n\n更新说明：\n${info.notes}` : "";
+      const go = confirm(
+        `发现新版本 v${info.latest}（当前 v${info.current}）。\n` +
+        `点击“确定”立即下载并自动重启更新。${notes}`);
+      if (go) {
+        btn.textContent = "准备更新...";
+        try {
+          await api("/api/apply-update", { method: "POST" });
+        } catch (err) {
+          toast(err.message, true);
+        }
+      }
+    }
+  } catch (err) {
+    toast(err.message, true);
+  }
+  btn.disabled = false;
+  btn.textContent = oldText;
+});
+
+/* ---------------- 自动刷新 ---------------- */
+async function refreshAll() {
+  await loadOverview();
   await loadProducts();
-  await loadSettings();
   await loadLogs();
-  window._schedulerInfo = { interval: settings.check_interval };
-  tickNextRun();
-})();
+}
+
+async function init() {
+  setGreeting();
+  await loadVersion();
+  await loadSettings();
+  await refreshAll();
+  setInterval(loadOverview, 15000);
+  setInterval(refreshAll, 30000);
+}
+init();
