@@ -12,3 +12,9 @@ __pycache__/
 
 # 日志与临时文件
 *.log
+
+# 二进制图标资产（运行 make_icons.py 即可生成，无需提交）
+assets/
+
+# 旧二进制种子库（种子已改为纯文本 products.json）
+seed/*.db
