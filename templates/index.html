@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>雪茄库存监控</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">●</span>
+      <div>
+        <h1>雪茄库存监控</h1>
+        <p>本地部署 · 定时检查 · 有货邮件提醒 · <span id="app-version">v-</span></p>
+      </div>
+    </div>
+    <div class="overview" id="overview">
+      <div class="stat"><b id="st-total">-</b><span>监控项</span></div>
+      <div class="stat"><b id="st-enabled" class="gold">-</b><span>启用中</span></div>
+      <div class="stat"><b id="st-in" class="green">-</b><span>有货</span></div>
+      <div class="stat"><b id="st-out" class="red">-</b><span>缺货</span></div>
+      <div class="stat"><b id="st-unknown" class="gray">-</b><span>未知</span></div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 添加监控 -->
+    <section class="card">
+      <h2>添加监控网址</h2>
+      <div class="form-row">
+        <input type="text" id="add-url" placeholder="粘贴雪茄商品页网址（https://...）" class="input grow">
+        <button class="btn primary" id="btn-add">添加并立即检查</button>
+      </div>
+      <p class="hint" id="add-msg"></p>
+    </section>
+
+    <!-- 问候语 + 全局操作条 -->
+    <section class="greeting-bar">
+      <div class="greeting">
+        <h2 id="greeting">你好</h2>
+        <p class="greeting-sub">查看与管理你的雪茄库存与监控动态</p>
+      </div>
+      <div class="greeting-actions">
+        <div class="search-pill">
+          <input type="text" id="filter-search" placeholder="Search...">
+          <button class="search-circular" id="filter-search-btn" aria-label="搜索">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          </button>
+        </div>
+        <button class="round-icon" id="btn-address" title="英文地址" aria-label="英文地址">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+        </button>
+        <button class="round-icon" id="btn-email" title="邮箱设置" aria-label="邮箱设置">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- 监控列表 -->
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title-block">
+          <h2>监控列表</h2>
+        </div>
+        <div class="head-actions">
+          <span class="next-run" id="next-run">下次检查：-</span>
+          <button class="btn ghost" id="btn-check-all">全部立即检查</button>
+          <button class="btn filter-toggle" id="btn-filter">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            筛选
+          </button>
+          <button class="btn ghost" id="btn-check-update">检查更新</button>
+        </div>
+      </div>
+
+      <!-- 可展开筛选面板 -->
+      <div class="filter-panel" id="filter-panel">
+        <div class="filter-row">
+          <div class="tag-filter" id="tag-filter"></div>
+          <label class="stock-check">
+            <input type="checkbox" id="stock-only">
+            <span class="stock-label">只显示有货</span>
+            <span class="stock-box"></span>
+          </label>
+        </div>
+        <p class="hint filter-meta" id="filter-meta"></p>
+      </div>
+
+      <div class="monitor-grid" id="monitor-grid">
+        <div class="m-head head-first">商品</div>
+        <div class="m-head">状态</div>
+        <div class="m-head">最后检查</div>
+        <div class="m-head">最后通知</div>
+        <div class="m-head head-center">启用</div>
+        <div class="m-head head-last">操作</div>
+        <div class="hover-highlight" id="hover-highlight"></div>
+        <div id="product-list" class="product-list"></div>
+      </div>
+    </section>
+
+    <!-- 邮箱与监控设置 -->
+    <section class="card collapsible" id="card-settings">
+      <div class="card-head collapsible-head">
+        <h2>发信邮箱与监控设置</h2>
+        <span class="chevron" aria-hidden="true">›</span>
+      </div>
+      <div class="card-body">
+        <div class="grid-form">
+          <label>邮箱预设
+            <select id="set-preset" class="input"></select>
+          </label>
+          <label>SMTP 主机
+            <input type="text" id="set-host" class="input">
+          </label>
+          <label>端口
+            <input type="text" id="set-port" class="input">
+          </label>
+          <label>加密方式
+            <select id="set-security" class="input">
+              <option value="ssl">SSL（465）</option>
+              <option value="tls">STARTTLS（587）</option>
+              <option value="none">不加密</option>
+            </select>
+          </label>
+          <label>发件账号
+            <input type="text" id="set-user" class="input" placeholder="your@qq.com">
+          </label>
+          <label>授权码 / 密码
+            <input type="password" id="set-pass" class="input" placeholder="QQ邮箱授权码，非登录密码">
+          </label>
+          <label>收件人（多个用 ; 或逗号分隔）
+            <input type="text" id="set-to" class="input">
+          </label>
+          <label>发件人名称
+            <input type="text" id="set-from-name" class="input">
+          </label>
+          <label>检查间隔（秒，最小 30）
+            <input type="number" id="set-interval" class="input" min="30">
+          </label>
+          <label>通知策略
+            <select id="set-notify-mode" class="input">
+              <option value="change">仅缺货转有货时通知（推荐）</option>
+              <option value="always">每次检查有货都通知</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row btns">
+          <button class="btn primary" id="btn-save-settings">保存设置</button>
+          <button class="btn ghost" id="btn-test-email">发送测试邮件</button>
+          <span class="hint" id="settings-msg"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 日志 -->
+    <section class="card collapsible" id="card-logs">
+      <div class="card-head collapsible-head">
+        <h2>检查日志（最近 50 条）</h2>
+        <div class="head-actions">
+          <button class="btn ghost small" id="btn-refresh-logs">刷新</button>
+          <span class="chevron" aria-hidden="true">›</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>时间</th><th>商品</th><th>状态</th><th>HTTP</th><th>详情</th></tr>
+            </thead>
+            <tbody id="log-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 英文地址弹窗 -->
+  <div class="modal-mask" id="address-modal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addr-title">
+      <div class="modal-head">
+        <h3 id="addr-title">英文收货地址 <span class="modal-sub">Shipping Address</span></h3>
+        <button class="modal-close" id="addr-close" aria-label="关闭">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="addr-section">
+          <p class="addr-sec-title">Street Address <span>街道地址</span></p>
+          <label class="addr-field">
+            <span class="addr-label">Street Address: Line 1 <em>街道地址（第一行）</em></span>
+            <input type="text" class="input" id="addr-line1" placeholder="Street / house number">
+          </label>
+          <label class="addr-field">
+            <span class="addr-label">Street Address: Line 2 <em>街道地址（第二行）</em></span>
+            <input type="text" class="input" id="addr-line2" placeholder="Apartment, suite, unit (optional)">
+          </label>
+        </div>
+        <div class="addr-section">
+          <p class="addr-sec-title">Region &amp; Postal <span>地区与邮编</span></p>
+          <div class="addr-grid">
+            <label class="addr-field">
+              <span class="addr-label">Country <em>国家</em></span>
+              <input type="text" class="input" id="addr-country">
+            </label>
+            <label class="addr-field">
+              <span class="addr-label">State / Province <em>州 / 省</em></span>
+            <input type="text" class="input" id="addr-state">
+            </label>
+            <label class="addr-field">
+              <span class="addr-label">City <em>城市</em></span>
+              <input type="text" class="input" id="addr-city">
+            </label>
+            <label class="addr-field">
+              <span class="addr-label">Zip / Postal Code <em>邮政编码</em></span>
+              <input type="text" class="input" id="addr-zip">
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" id="addr-cancel">取消</button>
+        <button class="btn primary" id="addr-save">保存地址</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
