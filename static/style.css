@@ -138,7 +138,7 @@ td a:hover { text-decoration: underline; }
 .switch { position: relative; width: 46px; height: 28px; display: inline-block; flex: 0 0 auto; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .slider-sw {
-  position: absolute; inset: 0; background: #d1d1d6; border-radius: 28px; cursor: transition: .25s;
+  position: absolute; inset: 0; background: #d1d1d6; border-radius: 28px; cursor: pointer; transition: .25s;
 }
 .slider-sw::before {
   content: ""; position: absolute; width: 24px; height: 24px; left: 2px; top: 2px;
@@ -181,7 +181,7 @@ td a:hover { text-decoration: underline; }
 .seg-group { display: inline-flex; background: #efeff1; border-radius: 980px; padding: 3px; gap: 2px; }
 .seg {
   border: none; background: transparent; color: var(--muted); padding: 8px 18px;
-  border-radius: 980px; font-size: 13px; font-weight: 500; cursor: white-space: nowrap;
+  border-radius: 980px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
   transition: background .15s, color .15s;
 }
 .seg.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
