@@ -14,7 +14,7 @@ GITHUB_REPO = "cigar-monitor"
 # 运行模式：PyInstaller 打包后 sys.frozen=True
 IS_FROZEN = getattr(sys, "frozen", False)
 
-# 只读资源目录（templates / static / 种子数据库）
+# 只读资源目录（templates / static / 种子）
 RESOURCE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 
 # 可写数据目录：打包后放 %LOCALAPPDATA%\CigarMonitor，开发模式放项目内
@@ -26,7 +26,8 @@ else:
 os.makedirs(DATA_DIR, exist_ok=True)
 
 DB_PATH = os.path.join(DATA_DIR, "monitor.db")
-SEED_DB = os.path.join(RESOURCE_DIR, "seed", "monitor.db")
+# 纯文本种子（首次启动预置监控项，无任何个人/二进制数据）
+SEED_JSON = os.path.join(RESOURCE_DIR, "seed", "products.json")
 
 # 本地服务
 WEB_HOST = "127.0.0.1"
