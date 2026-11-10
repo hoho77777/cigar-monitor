@@ -1,0 +1,9 @@
+requests>=2.34
+beautifulsoup4>=4.15
+flask>=3.1
+apscheduler>=3.11
+curl_cffi>=0.17
+pywebview>=6.2
+pystray>=0.19
+pillow>=13.0
+pyinstaller>=6.22
