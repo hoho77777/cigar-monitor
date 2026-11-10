@@ -92,12 +92,13 @@ def _download(url, progress=None):
 def _build_batch(target, new_exe):
     """生成等待退出→替换→重启的批处理，返回路径。"""
     batch = os.path.join(tempfile.gettempdir(), "cigar_update.bat")
+    # 批处理内容（CRLF，延迟扩展，避免中文路径问题）
     lines = [
         "@echo off",
         "setlocal enabledelayedexpansion",
         "chcp 65001 >nul",
-        f'set "TARGET={target}"',
-        f'set "NEW={new_exe}"',
+        f'set "TARGET={target}',
+        f'set "NEW={new_exe}',
         "set /a n=0",
         ":waitloop",
         f'tasklist /fi "imagename eq {_EXE_NAME}" 2>nul | find /i "{_EXE_NAME}" >nul',
