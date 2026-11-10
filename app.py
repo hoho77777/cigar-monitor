@@ -44,9 +44,17 @@ def perform_check(pid):
     try:
         status, detail, code = check_product(product)
     except Exception as e:
-        detail = f"抓取失败: {e}"
+        status, detail, code = "unknown", f"抓取失败: {e}", None
+
+    # 本次无法确认真实状态（限流/超时/页面无标记）：保留上次已确认状态，不降级为未知
+    if status == "unknown":
+        db.add_log(pid, "unknown", code, detail)
+        if old_status in ("in_stock", "out_of_stock"):
+            keep_text = f"{detail}（本次无法确认，沿用上次状态）"
+            db.update_status(pid, old_status, keep_text)
+            return {"id": pid, "status": old_status, "detail": keep_text,
+                    "notified": False, "degraded": True}
         db.update_status(pid, "unknown", detail)
-        db.add_log(pid, "unknown", None, detail)
         return {"id": pid, "status": "unknown", "detail": detail, "notified": False}
 
     # 是否需要发邮件
