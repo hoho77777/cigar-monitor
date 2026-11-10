@@ -108,7 +108,7 @@ function renderProducts() {
   const root = $("product-list");
   root.innerHTML = list.length
     ? list.map(prodRow).join("")
-    : `<div class="empty-hint">${productCache.length ? "没有符合筛选条件的监控项" : "暂无监控项，添加一个雪茄商品网址开始监控"}</div>`;
+    : `<div class="empty-hint">${productCache.length ? "没有符合筛选条件的监控项" : "暂无监控项，添加一个雪茄网址开始监控"}</div>`;
   const active = filterState.q.trim() || filterState.status !== "all" || filterState.tags.size;
   $("filter-meta").textContent = active ? `筛选结果：${list.length} / ${productCache.length} 项` : "";
   hideHighlight();
@@ -166,7 +166,7 @@ function moveHighlight(row) {
   const hl = $("hover-highlight");
   const gridRect = $("monitor-grid").getBoundingClientRect();
   const cellRect = row.querySelector(".cell").getBoundingClientRect();
-  hl.style.top = (cellRect.top - gridRect) + "px";
+  hl.style.top = (cellRect.top - gridRect.top) + "px";
   hl.style.height = cellRect.height + "px";
   hl.classList.add("on");
 }
@@ -343,9 +343,7 @@ $("btn-test-email").addEventListener("click", async () => {
   try {
     await api("/api/test-email", { method: "POST" });
     msg.textContent = "测试邮件已发送，请查收"; msg.className = "hint ok";
-  } catch (err) {
-    msg.textContent = err.message; msg.className = "hint error";
-  }
+  } catch (err) { msg.textContent = err.message; msg.className = "hint error"; }
 });
 
 /* ---------------- 日志 ---------------- */
