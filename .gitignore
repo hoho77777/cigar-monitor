@@ -1,0 +1,14 @@
+# 本地运行数据（含邮箱、授权码、地址等隐私，禁止提交）
+data/
+
+# 打包与构建产物（exe 通过 GitHub Release 发布）
+build/
+dist/
+*.spec
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 日志与临时文件
+*.log
