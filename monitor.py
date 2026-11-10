@@ -39,7 +39,7 @@ IN_KEYWORDS = [
 DOMAIN_ADAPTERS = {
     "cigars-of-cuba.com": "coc",
     "cigarone.com": "cigarone",
-    "c-cigars.de": "jsonld",
+    "c-cigars.de": "shopify",
     "alpscigar.com": "woocommerce",
     "thecigar.com": "prestashop",
 }
@@ -77,13 +77,36 @@ def _fetch_cloudflare(url):
 # 已知稳定拦截的站点，直接走浏览器指纹，省去一次失败请求
 CF_DIRECT_DOMAINS = ("alpscigar.com",)
 
+# 限流 / 临时网络错误退避重试
+RATE_LIMIT_CODES = (429,)
+TRANSIENT_RETRIES = 3
+TRANSIENT_BACKOFF = 4
+
+
+def _fetch_normal_retry(url):
+    """普通抓取，对 429 限流和临时网络错误做退避重试。"""
+    last_text, last_code, last_err = None, None, None
+    for attempt in range(TRANSIENT_RETRIES):
+        try:
+            r = requests.get(url, headers=BROWSER_HEADERS, timeout=REQUEST_TIMEOUT)
+            last_text, last_code = r.text, r.status_code
+            if r.status_code not in RATE_LIMIT_CODES:
+                return last_text, last_code
+        except requests.RequestException as e:
+            last_err = e
+        if attempt < TRANSIENT_RETRIES - 1:
+            time.sleep(TRANSIENT_BACKOFF * (attempt + 1))
+    if last_text is not None:
+        return last_text, last_code  # 重试用尽仍为限流页，交给上层处理
+    raise last_err
+
 
 def fetch(url):
     domain = urlparse(url).netloc.lower()
     if any(d in domain for d in CF_DIRECT_DOMAINS):
         return _fetch_cloudflare(url)
     try:
-        text, code = _fetch_normal(url)
+        text, code = _fetch_normal_retry(url)
         if not _is_cloudflare_block(code, text):
             return text, code
     except requests.RequestException:
@@ -216,6 +239,32 @@ def _check_prestashop(soup):
     return None, "未找到库存标记"
 
 
+def _check_shopify(soup):
+    """Shopify 站点（如 c-cigars.de）：JSON-LD 优先，加购按钮兜底。"""
+    # 1. JSON-LD 结构化数据
+    mapped = check_jsonld(soup)
+    if mapped:
+        return mapped, "JSON-LD 结构化数据"
+
+    # 2. 产品表单的加购按钮：disabled / Ausverkauft 即缺货
+    form = soup.select_one('form[action*="/cart/add"]')
+    if form:
+        btn = form.select_one("button, input[type=submit]")
+        if btn is not None:
+            btxt = re.sub(r"\s+", " ", btn.get_text(" ", strip=True)).lower()
+            if btn.has_attr("disabled") or "ausverkauft" in btxt or "sold out" in btxt:
+                label = btxt.strip() or "禁用"
+                return "out_of_stock", f"加购按钮禁用/缺货（{label}）"
+            return "in_stock", "加购按钮可点击"
+
+    # 3. 可见文本兜底（多语言缺货词）
+    visible = re.sub(r"\s+", " ", soup.get_text(" ", strip=True)).lower()
+    for kw in ("ausverkauft", "nicht vorrätig", "sold out", "out of stock"):
+        if kw in visible:
+            return "out_of_stock", f"关键词“{kw}”"
+    return None, "未找到库存标记"
+
+
 def _split_keywords(raw):
     return [x.strip().lower() for x in re.split(r"[;,，；\n]+", raw or "") if x.strip()]
 
@@ -271,6 +320,8 @@ def check_product(product):
         status, detail = _check_woocommerce(soup)
     elif adapter == "prestashop":
         status, detail = _check_prestashop(soup)
+    elif adapter == "shopify":
+        status, detail = _check_shopify(soup)
     elif adapter == "jsonld":
         status = check_jsonld(soup)
         detail = "JSON-LD 结构化数据" if status else "JSON-LD 中无库存信息"
