@@ -13,6 +13,11 @@ BRANDS = {
     "vegas", "robaina", "cuaba", "diplomaticos", "juan", "lopez", "rafael",
     "gonzalez", "cristobal", "belinda", "rey", "mund", "davidoff", "camacho",
     "padron", "arturo", "fuente", "macanudo", "upmann", "larranaga",
+    "veguero",
+}
+# 品牌标准显示名（词干 -> 规范名；仅处理单复数等需要还原的拼写）
+BRAND_DISPLAY = {
+    "veguero": "Vegueros",
 }
 # 产地（仅过滤，不产生标签）
 ORIGINS = {
@@ -71,7 +76,7 @@ def extract_tags(name, url):
         if stem in ORIGINS or stem in SPECS or raw in SPECS:
             continue  # 产地/规格仅过滤
         if stem in BRANDS:
-            add("brand", stem.capitalize())
+            add("brand", BRAND_DISPLAY.get(stem, stem.capitalize()))
         else:
             add("line", stem.capitalize())
 
