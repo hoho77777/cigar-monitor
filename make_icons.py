@@ -1,48 +1,97 @@
 # -*- coding: utf-8 -*-
-"""由 assets/icon-source.png 生成透明背景的多尺寸 ico 与 png。
+"""生成透明背景的多尺寸 ico 与 png。
 
-源图圆角方形之外是白色（无 alpha），先从四角 flood fill 精确识别外部白色
-（内部雪茄烟灰被深色隔开、不受影响），转为透明并柔化边缘，再生成各尺寸。
+两条路径：
+1. 若存在 assets/icon-source.png：从四角 flood fill 精确识别圆角外白色（内部雪茄
+   烟灰被深色隔开、不受影响），转透明并柔化边缘；
+2. 否则用 PIL 程序化绘制一个深色圆角底 + 金雪茄的默认图标，保证在没有任何
+   二进制源图的情况下也能生成全套图标（仓库因此无需纳入二进制资产）。
 """
 import os
 from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(ROOT, "assets", "icon-source.png")
+ASSETS = os.path.join(ROOT, "assets")
+SRC = os.path.join(ASSETS, "icon-source.png")
 MARK = (255, 0, 255)
 
-src = Image.open(SRC).convert("RGB")
-w, h = src.size
 
-# 1. flood fill 标记圆角外的白色连通区域
-work = src.copy()
-for seed in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]:
-    ImageDraw.floodfill(work, seed, MARK, thresh=60)
+def _from_source():
+    """从用户源图 flood fill 去背景，返回 RGBA。"""
+    src = Image.open(SRC).convert("RGB")
+    w, h = src.size
 
-# 2. 生成 alpha：标记区透明，其余不透明
-wp = work.load()
-mask = Image.new("L", (w, h), 255)
-mp = mask.load()
-for y in range(h):
-    for x in range(w):
-        if wp[x, y] == MARK:
-            mp[x, y] = 0
-mask = mask.filter(ImageFilter.GaussianBlur(1.2))   # 柔化边缘，缩小后平滑
+    work = src.copy()
+    for seed in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]:
+        ImageDraw.floodfill(work, seed, MARK, thresh=60)
 
-# 3. 合成透明 RGBA
-rgba = src.copy()
-rgba.putalpha(mask)
-rgba.save(os.path.join(ROOT, "assets", "icon-rgba.png"))
+    wp = work.load()
+    mask = Image.new("L", (w, h), 255)
+    mp = mask.load()
+    for y in range(h):
+        for x in range(w):
+            if wp[x, y] == MARK:
+                mp[x, y] = 0
+    mask = mask.filter(ImageFilter.GaussianBlur(1.2))
 
-# 4. 多尺寸 Windows 图标（exe / 窗口）
-ico_sizes = [(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)]
-rgba.save(os.path.join(ROOT, "assets", "cigar.ico"), format="ICO", sizes=ico_sizes)
+    rgba = src.copy()
+    rgba.putalpha(mask)
+    return rgba
 
-# 5. 托盘 / 通知 / 窗口用 png
-for px in (256, 128, 64, 48, 32):
-    rgba.resize((px, px), Image.LANCZOS).save(
-        os.path.join(ROOT, "assets", f"icon-{px}.png"))
 
-print("透明图标生成完成 ->", os.path.join(ROOT, "assets"))
-for f in sorted(os.listdir(os.path.join(ROOT, "assets"))):
-    print(" ", f)
+def _draw_default(size=1024):
+    """程序化绘制深色圆角底 + 横放金雪茄（透明圆角外区域）。"""
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    # 深色圆角方形底
+    radius = int(size * 0.22)
+    d.rounded_rectangle([0, 0, size - 1, size - 1], radius=radius,
+                        fill=(43, 39, 35, 255))
+
+    cy = size // 2
+    th = int(size * 0.082)          # 雪茄厚度
+    x0, x1 = int(size * 0.225), int(size * 0.775)
+    y0, y1 = cy - th // 2, cy + th // 2
+    cap = th // 2                   # 雪茄圆头半径
+
+    # 整条金色主体（圆头）
+    d.rounded_rectangle([x0, y0, x1, y1], radius=cap, fill=(199, 159, 72, 255))
+    # 左端灰白烟灰
+    ash1 = x0 + int(size * 0.075)
+    d.rounded_rectangle([x0, y0, ash1, y1], radius=cap, fill=(214, 214, 214, 255))
+    # 右端烟帽（稍深，增加层次）
+    cap0 = x1 - int(size * 0.028)
+    d.rounded_rectangle([cap0, y0, x1, y1], radius=cap, fill=(168, 132, 58, 255))
+    # 金色环（亮金细环）
+    ring0 = x1 - int(size * 0.066)
+    ring1 = ring0 + int(size * 0.022)
+    d.rectangle([ring0, y0, ring1, y1], fill=(231, 203, 130, 255))
+    return img
+
+
+def main():
+    os.makedirs(ASSETS, exist_ok=True)
+    if os.path.exists(SRC):
+        rgba = _from_source()
+        print("使用源图生成：", os.path.basename(SRC))
+    else:
+        rgba = _draw_default()
+        print("未发现源图，使用程序化默认图标")
+
+    rgba.save(os.path.join(ASSETS, "icon-rgba.png"))
+
+    ico_sizes = [(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)]
+    rgba.save(os.path.join(ASSETS, "cigar.ico"), format="ICO", sizes=ico_sizes)
+
+    for px in (256, 128, 64, 48, 32):
+        rgba.resize((px, px), Image.LANCZOS).save(
+            os.path.join(ASSETS, f"icon-{px}.png"))
+
+    print("图标生成完成 ->", ASSETS)
+    for f in sorted(os.listdir(ASSETS)):
+        print(" ", f)
+
+
+if __name__ == "__main__":
+    main()
