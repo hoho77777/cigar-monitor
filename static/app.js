@@ -166,7 +166,7 @@ function moveHighlight(row) {
   const hl = $("hover-highlight");
   const gridRect = $("monitor-grid").getBoundingClientRect();
   const cellRect = row.querySelector(".cell").getBoundingClientRect();
-  hl.style.top = (cellRect.top - gridRect.top) + "px";
+  hl.style.top = (cellRect.top - gridRect) + "px";
   hl.style.height = cellRect.height + "px";
   hl.classList.add("on");
 }
@@ -341,7 +341,7 @@ $("btn-test-email").addEventListener("click", async () => {
   const msg = $("settings-msg");
   msg.textContent = "正在发送测试邮件..."; msg.className = "hint";
   try {
-    const r = await api("/api/test-email", { method: "POST" });
+    await api("/api/test-email", { method: "POST" });
     msg.textContent = "测试邮件已发送，请查收"; msg.className = "hint ok";
   } catch (err) {
     msg.textContent = err.message; msg.className = "hint error";
