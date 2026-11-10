@@ -184,15 +184,14 @@ def add_log(product_id, status, http_code, detail):
 
 
 def list_logs(limit=50, product_id=None):
+    conn = _conn()
     try:
         if product_id:
-            conn = _conn()
             rows = conn.execute(
                 "SELECT * FROM logs WHERE product_id=? ORDER BY id DESC LIMIT ?", (product_id, limit)
             ).fetchall()
         else:
-            conn = _conn()
             rows = conn.execute("SELECT * FROM logs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()
-    return [dict(r) for r in rows]
