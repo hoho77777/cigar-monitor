@@ -111,7 +111,7 @@ function prodRow(p) {
     </div>
     <div class="cell c-ops">
       <button class="icon-btn" data-action="check" data-id="${p.id}" title="立即检查" aria-label="立即检查">${ICONS.check}</button>
-      <button class="icon-btn danger" data-action="delete" data-id="${p.id}" title="删除" aria-label="删除">${ICONS.delete}</button>
+      <button class="icon-btn" data-action="delete" data-id="${p.id}" title="删除" aria-label="删除">${ICONS.delete}</button>
     </div>
   </div>`;
 }
@@ -288,7 +288,7 @@ async function openAddressModal() {
 }
 
 function closeAddressModal() {
-  const m = $("address-modal");
+  const m = $("地址-modal");
   m.classList.remove("show");
   m.setAttribute("aria-hidden", "true");
 }
@@ -388,7 +388,7 @@ $("btn-test-email").addEventListener("click", async () => {
   msg.textContent = "正在发送测试邮件..."; msg.className = "hint";
   try {
     await api("/api/test-email", { method: "POST" });
-    msg.textContent = "测试已发送，请查收"; msg.className = "hint ok";
+    msg.textContent = "测试邮件已发送，请查收"; msg.className = "hint ok";
   } catch (err) { msg.textContent = err.message; msg.className = "hint error"; }
 });
 
