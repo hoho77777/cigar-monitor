@@ -13,7 +13,7 @@ BRANDS = {
     "punch", "sancho", "panza", "cohiba", "montecristo", "romeo", "julieta",
     "bolivar", "partagas", "trinidad", "hoyo", "monterrey", "quintero",
     "vegas", "robaina", "cuaba", "diplomaticos", "juan", "lopez", "rafael",
-    "gonzalez", "cristobal", "belinda", "rey", "mund", "davidoff", "camacho",
+    "gonzalez", "cristobal", "rey", "davidoff", "camacho",
     "padron", "arturo", "fuente", "macanudo", "upmann", "larranaga",
     "veguero",
 }
