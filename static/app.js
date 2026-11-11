@@ -111,7 +111,7 @@ function prodRow(p) {
     </div>
     <div class="cell c-ops">
       <button class="icon-btn" data-action="check" data-id="${p.id}" title="立即检查" aria-label="立即检查">${ICONS.check}</button>
-      <button class="icon-btn" data-action="delete" data-id="${p.id}" title="删除" aria-label="删除">${ICONS.delete}</button>
+      <button class="icon-btn danger" data-action="delete" data-id="${p.id}" title="删除" aria-label="删除">${ICONS.delete}</button>
     </div>
   </div>`;
 }
@@ -288,7 +288,7 @@ async function openAddressModal() {
 }
 
 function closeAddressModal() {
-  const m = $("地址-modal");
+  const m = $("address-modal");
   m.classList.remove("show");
   m.setAttribute("aria-hidden", "true");
 }
