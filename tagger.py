@@ -6,7 +6,9 @@
 """
 import re
 
-# 品牌（按需扩充；多词品牌如 Sancho Panza 会在输出时合并）
+import brands
+
+# 品牌（按需扩充；多词品牌如 Sancho Panza 由 brands.EN_CANONICAL 归一）
 BRANDS = {
     "punch", "sancho", "panza", "cohiba", "montecristo", "romeo", "julieta",
     "bolivar", "partagas", "trinidad", "hoyo", "monterrey", "quintero",
@@ -14,10 +16,6 @@ BRANDS = {
     "gonzalez", "cristobal", "belinda", "rey", "mund", "davidoff", "camacho",
     "padron", "arturo", "fuente", "macanudo", "upmann", "larranaga",
     "veguero",
-}
-# 品牌标准显示名（词干 -> 规范名；仅处理单复数等需要还原的拼写）
-BRAND_DISPLAY = {
-    "veguero": "Vegueros",
 }
 # 产地（仅过滤，不产生标签）
 ORIGINS = {
@@ -76,14 +74,10 @@ def extract_tags(name, url):
         if stem in ORIGINS or stem in SPECS or raw in SPECS:
             continue  # 产地/规格仅过滤
         if stem in BRANDS:
-            add("brand", BRAND_DISPLAY.get(stem, stem.capitalize()))
+            add("brand", brands.canonical_brand(stem))
         else:
             add("line", stem.capitalize())
 
-    # 合并相邻多词品牌（如 Sancho + Panza -> Sancho Panza）
-    if {"Sancho", "Panza"}.issubset(set(buckets["brand"])):
-        buckets["brand"] = [b for b in buckets["brand"] if b not in ("Sancho", "Panza")]
-        buckets["brand"].insert(0, "Sancho Panza")
     return buckets
 
 

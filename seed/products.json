@@ -1,24 +1,3 @@
 {
-  "products": [
-    {
-      "name": "Punch Coronations Tube Box of 25 - Habanos Regular Productions - Buy Cigars Online - Cigars of cuba, online cuban cigar",
-      "url": "https://www.cigars-of-cuba.com/cigars/punch-coronations-tube-box-of-25.html",
-      "adapter": "auto"
-    },
-    {
-      "name": "CigarOne",
-      "url": "https://www.cigarone.com/cuba/punch/petit-coronations-tubos.html",
-      "adapter": "auto"
-    },
-    {
-      "name": "Punch Petit Coronation - C-cigars",
-      "url": "https://c-cigars.de/products/punch-petit-coronation",
-      "adapter": "auto"
-    },
-    {
-      "name": "Punch Petit Coronations Tubos (25) - Alps Cigar",
-      "url": "https://alpscigar.com/shop/cigares-cubains/punch/punch-petit-coronations-tubos-25/",
-      "adapter": "auto"
-    }
-  ]
+  "products": []
 }
