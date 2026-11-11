@@ -25,7 +25,7 @@
 
 - **点窗口关闭按钮（×）不会退出软件**：窗口隐藏、任务栏图标消失，软件转入后台继续监控
 - 首次隐藏时右下角会弹出气泡提示；点击托盘图标即可恢复窗口
-- 右键托盘图标可选择「显示主窗口」「退出」
+- 右键托盘图标可选择「显示主窗口」或「退出」
 - 只有点托盘菜单的「退出」才会真正结束程序
 
 > 桌面版依赖 Microsoft Edge WebView2 运行时。Windows 10/11 通常已预装；若窗口无法打开，请安装「Microsoft Edge WebView2 Runtime」（微软官网可免费下载）。
@@ -49,7 +49,6 @@
 | 站点 | 判断方式 |
 |---|---|
 | cigars-of-cuba.com | 页面 `stock-availability` 区块：Out of Stock / In Stock |
-| cigarone.com | 加购按钮是否禁用（disabled = 缺货） |
 | cigarone.com | 加购按钮是否禁用（disabled = 缺货） |
 | c-cigars.de | 结构化数据 schema.org/SoldOut 与 InStock |
 | alpscigar.com | 模拟浏览器指纹绕过 Cloudflare，读取 WooCommerce 库存与结构化数据 |
@@ -88,7 +87,7 @@
 
 - **测试邮件发不出去**：确认授权码正确、SMTP 服务已开启；主机 / 端口 / 加密保持对应预设
 - **某商品显示「未知」**：多为网络或反爬拦截，日志里有原因；Cloudflare 站点会自动重试，仍失败可适当降低检查频率
-- **端口被占用**：桌面会从 5050 起自动寻找可用端口，无需手动处理
+- **端口被占用**：桌面版会从 5050 起自动寻找可用端口，无需手动处理
 - **想换收件邮箱**：设置里切换预设即可，支持 QQ、163、126、Gmail、Outlook 及自定义 SMTP
 
 ## 数据与安全
