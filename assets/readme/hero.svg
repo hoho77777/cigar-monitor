@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="htitle hdesc">
+  <title id="htitle">CigarMonitor · 雪茄库存监控工具</title>
+  <desc id="hdesc">本地定时监控雪茄商品库存，缺货转有货时立即邮件与系统通知，数据全部保存在本机，免费开源。</desc>
+
+  <defs>
+    <linearGradient id="hbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F4F7FC"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#818CF8"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#DBEAFE" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#DBEAFE" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#E0E7FF" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#E0E7FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="1200" height="400" rx="28" fill="url(#hbg)" stroke="#E5E9F0" stroke-width="1.5"/>
+  <circle cx="120" cy="70" r="180" fill="url(#glow1)"/>
+  <circle cx="1080" cy="360" r="200" fill="url(#glow2)"/>
+
+  <!-- 左侧标题区 -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    <circle cx="78" cy="74" r="7" fill="#10B981"/>
+    <text x="96" y="81" font-size="20" fill="#64748B" font-weight="600">本地部署 · 免费开源</text>
+
+    <text x="64" y="158" font-size="66" font-weight="800" fill="#1E2328" letter-spacing="-1.5">CigarMonitor</text>
+    <text x="66" y="206" font-size="28" font-weight="700" fill="#334155">雪茄库存监控工具</text>
+    <text x="66" y="258" font-size="20" fill="#64748B">定时盯库存，缺货转有货立即邮件 + 系统通知</text>
+
+    <text x="66" y="330" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#94A3B8">v1.0.0  ·  Python  ·  Windows  ·  数据存本机</text>
+  </g>
+
+  <!-- 右侧视觉：扫描环 + 监控面板 -->
+  <g>
+    <circle cx="940" cy="205" r="172" fill="none" stroke="url(#ring)" stroke-width="2" stroke-dasharray="6 10" opacity="0.45"/>
+    <circle cx="940" cy="205" r="138" fill="none" stroke="#CBD5E1" stroke-width="1.5" opacity="0.5"/>
+
+    <rect x="736" y="92" width="408" height="270" rx="20" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1.5"/>
+
+    <!-- 面板标题 + 铃铛 -->
+    <text x="760" y="132" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="19" font-weight="700" fill="#1E2328">监控列表</text>
+    <g transform="translate(1100 116)">
+      <path d="M0 6 a11 11 0 0 1 22 0 v9 l4 6 h-30 l4 -6 z" fill="#334155"/>
+      <circle cx="16" cy="2" r="5" fill="#EF4444"/>
+    </g>
+
+    <!-- 行 1 缺货 -->
+    <circle cx="772" cy="172" r="8" fill="#EF4444"/>
+    <rect x="792" y="160" width="200" height="10" rx="5" fill="#CBD5E1"/>
+    <rect x="792" y="178" width="140" height="8" rx="4" fill="#E2E8F0"/>
+    <rect x="1066" y="160" width="56" height="26" rx="13" fill="#FEE2E2"/>
+    <text x="1094" y="178" text-anchor="middle" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="15" font-weight="700" fill="#DC2626">缺货</text>
+
+    <!-- 行 2 有货（突出） -->
+    <circle cx="772" cy="228" r="8" fill="#10B981"/>
+    <rect x="792" y="216" width="220" height="10" rx="5" fill="#94A3B8"/>
+    <rect x="792" y="234" width="160" height="8" rx="4" fill="#E2E8F0"/>
+    <rect x="1066" y="216" width="56" height="26" rx="13" fill="#D1FAE5"/>
+    <text x="1094" y="234" text-anchor="middle" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="15" font-weight="700" fill="#059669">有货</text>
+
+    <!-- 行 3 缺货 -->
+    <circle cx="772" cy="284" r="8" fill="#EF4444"/>
+    <rect x="792" y="272" width="180" height="10" rx="5" fill="#CBD5E1"/>
+    <rect x="792" y="290" width="120" height="8" rx="4" fill="#E2E8F0"/>
+    <rect x="1066" y="272" width="56" height="26" rx="13" fill="#FEE2E2"/>
+    <text x="1094" y="290" text-anchor="middle" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="15" font-weight="700" fill="#DC2626">缺货</text>
+  </g>
+</svg>
