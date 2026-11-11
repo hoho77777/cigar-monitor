@@ -13,7 +13,7 @@
 
 CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页网址丢进去，它会在后台定时检查库存，一旦从「缺货」变成「有货」，立即发邮件并弹出 Windows 系统通知。全部数据保存在自己电脑上，无需公网服务器，也不向第三方上传数据。
 
-提供桌面应用（推荐）与浏览器版两种使用方式。
+提供桌面应用（推荐）与浏览器版两种使用方式。<p><a href="https://github.com/hoho77777/cigar-monitor/releases/tag/v1.0.0" target="_blank" rel="noopener noreferrer">桌面端下载</a></p>
 
 ## 界面预览
 
