@@ -35,7 +35,8 @@ function setGreeting() {
   else if (h >= 14 && h < 18) g = "下午好";
   else if (h >= 18 && h < 22) g = "晚上好";
   else g = "夜深了";
-  $("greeting").textContent = g;
+  const el = $("greeting");
+  if (el.textContent !== g) el.textContent = g;
 }
 
 /* ---------------- 概览 ---------------- */
@@ -54,7 +55,7 @@ async function loadOverview() {
 /* ---------------- 线性图标 ---------------- */
 const ICONS = {
   check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`,
-  delete: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>`,
+  delete: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2-2H8a2 2 0 0 1-2-2L5 6"/></svg>`,
 };
 
 function fmtTime(s) {
@@ -412,7 +413,7 @@ $("btn-check-update").addEventListener("click", async () => {
       }
     }
   } catch (err) {
-    toast(err.message, true);
+    btn.textContent = err.message, true);
   }
   btn.disabled = false;
   btn.textContent = oldText;
@@ -432,5 +433,6 @@ async function init() {
   await refreshAll();
   setInterval(loadOverview, 15000);
   setInterval(refreshAll, 30000);
+  setInterval(setGreeting, 60000);
 }
 init();
