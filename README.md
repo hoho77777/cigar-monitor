@@ -17,17 +17,24 @@ CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页
 
 ## 界面预览
 
-<p align="center">
-  <img src="./assets/readme/shot-main.png" width="780" alt="主界面与监控列表，缺货状态一目了然">
-</p>
-
-<p align="center">
-  <img src="./assets/readme/shot-search.png" width="780" alt="中文搜索与品牌标签，搜威古洛即可找到对应商品">
-</p>
-
-<p align="center">
-  <img src="./assets/readme/shot-filter.png" width="780" alt="品牌标签在英文后标注中文，支持按品牌与有货筛选">
-</p>
+<table>
+  <tr>
+    <td width="33%">
+      <a href="./assets/readme/shot-main.png"><img src="./assets/readme/shot-main.png" width="100%" alt="主界面与监控列表，缺货状态一目了然"></a>
+    </td>
+    <td width="33%">
+      <a href="./assets/readme/shot-search.png"><img src="./assets/readme/shot-search.png" width="100%" alt="中文搜索与品牌标签，搜威古洛即可找到对应商品"></a>
+    </td>
+    <td width="33%">
+      <a href="./assets/readme/shot-filter.png"><img src="./assets/readme/shot-filter.png" width="100%" alt="品牌标签在英文后标注中文，支持按品牌与有货筛选"></a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>监控总览</b></td>
+    <td align="center"><b>中文搜索</b></td>
+    <td align="center"><b>品牌筛选</b></td>
+  </tr>
+</table>
 
 ## 功能特性
 
