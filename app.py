@@ -15,7 +15,7 @@ import database as db
 from config import (WEB_HOST, WEB_PORT, SMTP_PRESETS, RESOURCE_DIR,
                     DB_PATH, SEED_JSON, APP_VERSION)
 from monitor import check_product, fetch_page_title
-from notifier import send_email, back_in_stock_html, test_email_html
+from notifier import send_email, back_in_stock_html, test_email_html, stock_greeting
 import tagger
 import updater
 
@@ -68,7 +68,7 @@ def perform_check(pid):
 
     result = {"id": pid, "status": status, "detail": detail, "notified": False}
     if should_notify:
-        fresh = db.get_product(pid)
+        fresh = with_tags(db.get_product(pid))
         # 右下角系统通知（独立于邮件，失败不影响邮件发送）
         if system_notify is not None:
             try:
@@ -76,7 +76,7 @@ def perform_check(pid):
             except Exception:
                 pass
         try:
-            send_email(db.get_settings(), f"【有货提醒】{fresh['name']}", back_in_stock_html(fresh))
+            send_email(db.get_settings(), stock_greeting(fresh), back_in_stock_html(fresh))
             db.update_status(pid, status, detail, notified=True)
             result["notified"] = True
         except Exception as e:
