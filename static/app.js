@@ -2,6 +2,7 @@
 const STATUS_LABEL = { in_stock: "有货", out_of_stock: "缺货", unknown: "未知" };
 const CAT_NAMES = { brand: "品牌", line: "型号" };
 let productCache = [];
+let brandMap = {}; // 规范英文名 -> {en, short(中文简称), full(中文全称)}
 const filterState = { q: "", status: "all", tags: new Set() };
 
 const $ = (id) => document.getElementById(id);
@@ -116,10 +117,19 @@ function prodRow(p) {
 }
 
 /* ---------------- 筛选 ---------------- */
+function searchableText(p) {
+  // 商品名、网址之外，把品牌的英文、中文简称、中文全称都纳入搜索
+  const brands = (p.tag_buckets?.brand || []).map((en) => {
+    const z = brandMap[en];
+    return z ? `${en} ${z.short} ${z.full}` : en;
+  }).join(" ");
+  return `${p.name} ${p.url} ${brands}`.toLowerCase();
+}
+
 function filtered() {
   const q = filterState.q.trim().toLowerCase();
   return productCache.filter((p) => {
-    if (q && !`${p.name} ${p.url}`.toLowerCase().includes(q)) return false;
+    if (q && !searchableText(p).includes(q)) return false;
     if (filterState.status !== "all" && p.status !== filterState.status) return false;
     if (filterState.tags.size && !p.tags.some((t) => filterState.tags.has(t))) return false;
     return true;
@@ -143,8 +153,20 @@ function buildTagFilter() {
   for (const p of productCache)
     for (const t of p.tags) counts[t] = (counts[t] || 0) + 1;
   const tags = [...new Set(productCache.flatMap((p) => p.tag_buckets.brand || []))].sort();
-  $("tag-filter").innerHTML = tags.map((t) =>
-    `<button class="chip ${filterState.tags.has(t) ? "active" : ""}" data-tag="${esc(t)}">${esc(t)}<span class="chip-n">${counts[t]}</span></button>`).join("");
+  $("tag-filter").innerHTML = tags.map((t) => {
+    const zh = brandMap[t]?.short;          // 标签只附中文简称
+    const label = zh ? `${t} ${zh}` : t;
+    return `<button class="chip ${filterState.tags.has(t) ? "active" : ""}" data-tag="${esc(t)}">${esc(label)}<span class="chip-n">${counts[t]}</span></button>`;
+  }).join("");
+}
+
+async function loadBrands() {
+  try {
+    const rows = await api("/api/brands");
+    brandMap = Object.fromEntries(rows.map((r) => [r.en, r]));
+  } catch (e) {
+    brandMap = {};
+  }
 }
 
 async function loadProducts() {
@@ -366,7 +388,7 @@ $("btn-test-email").addEventListener("click", async () => {
   msg.textContent = "正在发送测试邮件..."; msg.className = "hint";
   try {
     await api("/api/test-email", { method: "POST" });
-    msg.textContent = "测试邮件已发送，请查收"; msg.className = "hint ok";
+    msg.textContent = "测试已发送，请查收"; msg.className = "hint ok";
   } catch (err) { msg.textContent = err.message; msg.className = "hint error"; }
 });
 
@@ -453,6 +475,7 @@ async function init() {
   setGreeting();
   await loadVersion();
   await loadSettings();
+  await loadBrands();
   await refreshAll();
   setInterval(loadOverview, 15000);
   setInterval(refreshAll, 30000);
