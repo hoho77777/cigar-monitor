@@ -27,14 +27,36 @@ function toast(msg, isErr = false) {
 }
 
 /* ---------------- 时段问候语 ---------------- */
+function greetingWord(h) {
+  if (h >= 5 && h < 11) return "早上好";
+  if (h >= 11 && h < 14) return "中午好";
+  if (h >= 14 && h < 18) return "下午好";
+  if (h >= 18 && h < 22) return "晚上好";
+  return "夜深了";
+}
+
 function setGreeting() {
   const h = new Date().getHours();
+  const night = h < 5 || h >= 22;
+  const word = greetingWord(h);
+  const inStock = productCache.filter((p) => p.status === "in_stock");
   let g;
-  if (h >= 5 && h < 11) g = "早上好";
-  else if (h >= 11 && h < 14) g = "中午好";
-  else if (h >= 14 && h < 18) g = "下午好";
-  else if (h >= 18 && h < 22) g = "晚上好";
-  else g = "夜深了";
+  if (inStock.length === 0) {
+    g = night ? "夜深了，早点休息~ 目前雪茄均没货"
+              : `${word}，目前雪茄均没货`;
+  } else if (inStock.length === 1) {
+    const brand = inStock[0].tag_buckets?.brand?.[0];
+    if (night) {
+      g = brand ? `夜深了，${brand}雪茄有货，抢完再睡！`
+                : "夜深了，有一款雪茄有货，抢完再睡！";
+    } else {
+      g = brand ? `${word}，${brand}雪茄有货，抓紧抢购！`
+                : `${word}，有一款雪茄有货，抓紧抢购！`;
+    }
+  } else {
+    g = night ? `夜深了，${inStock.length}款雪茄有货，抢完再睡！`
+              : `${word}，${inStock.length}款雪茄有货，抓紧抢购！`;
+  }
   const el = $("greeting");
   if (el.textContent !== g) el.textContent = g;
 }
@@ -113,6 +135,7 @@ function renderProducts() {
   const active = filterState.q.trim() || filterState.status !== "all" || filterState.tags.size;
   $("filter-meta").textContent = active ? `筛选结果：${list.length} / ${productCache.length} 项` : "";
   hideHighlight();
+  setGreeting();
 }
 
 function buildTagFilter() {
