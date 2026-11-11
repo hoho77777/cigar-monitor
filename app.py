@@ -17,6 +17,7 @@ from config import (WEB_HOST, WEB_PORT, SMTP_PRESETS, RESOURCE_DIR,
 from monitor import check_product, fetch_page_title
 from notifier import send_email, back_in_stock_html, test_email_html, stock_greeting
 import tagger
+import brands
 import updater
 
 app = Flask(
@@ -177,6 +178,12 @@ def with_tags(product):
     product["tag_buckets"] = buckets
     product["tags"] = tagger.flat_tags(buckets)
     return product
+
+
+@app.route("/api/brands")
+def brands_dict():
+    """返回雪茄品牌中英文词库，供前端中文搜索与标签显示。"""
+    return jsonify(brands.brand_table())
 
 
 @app.route("/api/products")
