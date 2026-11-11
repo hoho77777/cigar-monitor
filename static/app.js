@@ -413,7 +413,7 @@ $("btn-check-update").addEventListener("click", async () => {
       }
     }
   } catch (err) {
-    btn.textContent = err.message, true);
+    toast(err.message, true);
   }
   btn.disabled = false;
   btn.textContent = oldText;
