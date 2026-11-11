@@ -20,5 +20,50 @@
   <g fill="#94A3B8">
     <path d="M392 100 l14 8 l-14 8 z"/>
     <path d="M692 100 l14 8 l-14 8 z"/>
-    <path94" y="234" text-anchor="middle" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="17" fill="#64748B">邮件 + Windows 通知</text>
+    <path d="M992 100 l14 8 l-14 8 z"/>
+  </g>
+
+  <!-- 节点 1：粘贴网址 -->
+  <g transform="translate(150 108)">
+    <circle r="48" fill="#EFF4FF" stroke="#BFDBFE" stroke-width="1.5"/>
+    <g transform="translate(-18 -18)" fill="none" stroke="url(#wicon)" stroke-width="3.4" stroke-linecap="round">
+      <path d="M10 14 a8 8 0 0 1 12 0 l8 8 a8 8 0 0 1 -12 11 l-3 -3"/>
+      <path d="M26 22 a8 8 0 0 1 -12 0 l-8 -8 a8 8 0 0 1 12 -11 l3 3"/>
+    </g>
+  </g>
+  <text x="150" y="200" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" font-weight="700" fill="#1E2328">粘贴商品网址</text>
+  <text x="150" y="234" text-anchor="middle" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="17" fill="#64748B">添加即自动首次检查</text>
+
+  <!-- 节点 2：定时检查 -->
+  <g transform="translate(450 108)">
+    <circle r="48" fill="#EFF4FF" stroke="#BFDBFE" stroke-width="1.5"/>
+    <g transform="translate(-18 -18)" fill="none" stroke="url(#wicon)" stroke-width="3.4" stroke-linecap="round">
+      <circle cx="18" cy="18" r="14"/>
+      <path d="M18 10 v8 l6 4"/>
+    </g>
+  </g>
+  <text x="450" y="200" text-anchor="middle" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" font-weight="700" fill="#1E2328">后台定时巡检</text>
+  <text x="450" y="234" text-anchor="middle" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="17" fill="#64748B">默认 5 分钟，可调</text>
+
+  <!-- 节点 3：解析状态 -->
+  <g transform="translate(750 108)">
+    <circle r="48" fill="#EFF4FF" stroke="#BFDBFE" stroke-width="1.5"/>
+    <g transform="translate(-18 -18)">
+      <circle cx="12" cy="12" r="7" fill="#10B981"/>
+      <circle cx="24" cy="24" r="7" fill="#EF4444"/>
+    </g>
+  </g>
+  <text x="750" y="200" text-anchor="middle" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" font-weight="700" fill="#1E2328">解析库存状态</text>
+  <text x="750" y="234" text-anchor="middle" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="17" fill="#64748B">结构化数据 + 关键词</text>
+
+  <!-- 节点 4：立即通知 -->
+  <g transform="translate(1050 108)">
+    <circle r="48" fill="#EFF4FF" stroke="#BFDBFE" stroke-width="1.5"/>
+    <g transform="translate(-16 -18)" fill="url(#wicon)">
+      <path d="M2 10 a14 14 0 0 1 28 0 v8 l4 6 h-36 l4 -6 z"/>
+      <path d="M11 28 a5 5 0 0 0 10 0 z"/>
+    </g>
+  </g>
+  <text x="1050" y="200" text-anchor="middle" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" font-weight="700" fill="#1E2328">立即通知</text>
+  <text x="1050" y="234" text-anchor="middle" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="17" fill="#64748B">邮件 + Windows 通知</text>
 </svg>
