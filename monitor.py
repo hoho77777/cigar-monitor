@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from config import REQUEST_TIMEOUT, CF_RETRIES, CF_RETRY_WAIT
+from config import REQUEST_TIMEOUT, CF_RETRIES, CF_RETRY_WAIT, NETWORK_RETRIES
 
 try:
     from curl_cffi import requests as cffi_requests
@@ -55,6 +55,9 @@ def _is_cloudflare_block(status, text):
     low = (text or "").lower()
     if "just a moment" in low or "cf-challenge" in low or "challenge-platform" in low:
         return True
+    # Cloudflare 速率限制（429，正文 local_rate_limited）：浏览器指纹可绕过，需降级
+    if "local_rate_limited" in low:
+        return True
     if status in (403, 503) and "cloudflare" in low:
         return True
     return False
@@ -74,30 +77,24 @@ def _fetch_cloudflare(url):
     raise RuntimeError(f"Cloudflare 挑战未通过（最后 HTTP {last_status}）")
 
 
-# 已知稳定拦截的站点，直接走浏览器指纹，省去一次失败请求
-CF_DIRECT_DOMAINS = ("alpscigar.com",)
+# 已知稳定拦截/指纹限流的站点，直接走浏览器指纹，省去一次失败请求
+CF_DIRECT_DOMAINS = ("alpscigar.com", "c-cigars.de")
 
-# 限流 / 临时网络错误退避重试
-RATE_LIMIT_CODES = (429,)
-TRANSIENT_RETRIES = 3
+# 网络异常退避（429 不在此重试：单轮零重试，由 app 层站点级退避统一处理）
 TRANSIENT_BACKOFF = 4
 
 
 def _fetch_normal_retry(url):
-    """普通抓取，对 429 限流和临时网络错误做退避重试。"""
-    last_text, last_code, last_err = None, None, None
-    for attempt in range(TRANSIENT_RETRIES):
+    """普通抓取。任何 HTTP 响应（含 429）立即返回、单轮只发一次；仅对网络异常少量重试。"""
+    last_err = None
+    for attempt in range(NETWORK_RETRIES):
         try:
             r = requests.get(url, headers=BROWSER_HEADERS, timeout=REQUEST_TIMEOUT)
-            last_text, last_code = r.text, r.status_code
-            if r.status_code not in RATE_LIMIT_CODES:
-                return last_text, last_code
+            return r.text, r.status_code
         except requests.RequestException as e:
             last_err = e
-        if attempt < TRANSIENT_RETRIES - 1:
-            time.sleep(TRANSIENT_BACKOFF * (attempt + 1))
-    if last_text is not None:
-        return last_text, last_code  # 重试用尽仍为限流页，交给上层处理
+            if attempt < NETWORK_RETRIES - 1:
+                time.sleep(TRANSIENT_BACKOFF)
     raise last_err
 
 
