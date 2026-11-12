@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import time
 import threading
 import webbrowser
 from datetime import datetime, timedelta
@@ -13,7 +14,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 import database as db
 from config import (WEB_HOST, WEB_PORT, SMTP_PRESETS, RESOURCE_DIR,
-                    DB_PATH, SEED_JSON, APP_VERSION)
+                    DB_PATH, SEED_JSON, APP_VERSION, SAME_DOMAIN_GAP,
+                    BACKOFF_BASE, BACKOFF_MULTIPLIER, BACKOFF_MAX)
 from monitor import check_product, fetch_page_title
 from notifier import send_email, back_in_stock_html, test_email_html, stock_greeting
 import tagger
@@ -27,6 +29,9 @@ app = Flask(
 )
 JOB_ID = "scheduled_check"
 scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
+
+# 域名级 429 自适应退避状态（进程内）：domain -> {"level": int, "next_at": monotonic}
+_domain_backoff = {}
 
 # 桌面端系统通知回调（desktop.py 注册；开发模式为 None 时静默跳过）
 system_notify = None
@@ -54,9 +59,9 @@ def perform_check(pid):
             keep_text = f"{detail}（本次无法确认，沿用上次状态）"
             db.update_status(pid, old_status, keep_text)
             return {"id": pid, "status": old_status, "detail": keep_text,
-                    "notified": False, "degraded": True}
+                    "notified": False, "degraded": True, "code": code}
         db.update_status(pid, "unknown", detail)
-        return {"id": pid, "status": "unknown", "detail": detail, "notified": False}
+        return {"id": pid, "status": "unknown", "detail": detail, "notified": False, "code": code}
 
     # 是否需要发邮件
     should_notify = False
@@ -67,7 +72,7 @@ def perform_check(pid):
     db.update_status(pid, status, detail)
     db.add_log(pid, status, code, detail)
 
-    result = {"id": pid, "status": status, "detail": detail, "notified": False}
+    result = {"id": pid, "status": status, "detail": detail, "notified": False, "code": code}
     if should_notify:
         fresh = with_tags(db.get_product(pid))
         # 右下角系统通知（独立于邮件，失败不影响邮件发送）
@@ -88,12 +93,45 @@ def perform_check(pid):
 
 
 def run_check_all():
+    # 1. 按域名分组启用的商品
+    grouped = {}
     for product in db.list_products():
         if product.get("enabled"):
+            domain = urlparse(product["url"]).netloc.lower().replace("www.", "")
+            grouped.setdefault(domain, []).append(product)
+
+    for domain, products in grouped.items():
+        state = _domain_backoff.get(domain)
+        now = time.monotonic()
+
+        # 2. 退避窗口未到：跳过该域名，不发请求，记录一次跳过日志
+        if state is not None and now < state["next_at"]:
+            wait_min = max(1, round((state["next_at"] - now) / 60))
+            for p in products:
+                db.add_log(p["id"], "unknown", None,
+                           f"站点限流退避中，本轮跳过，约 {wait_min} 分钟后重试")
+            continue
+
+        # 3. 到点检查：同站商品错峰，逐个抓取
+        got_429 = False
+        for i, product in enumerate(products):
+            if i > 0:
+                time.sleep(SAME_DOMAIN_GAP)
             try:
-                perform_check(product["id"])
+                result = perform_check(product["id"]) or {}
             except Exception as e:
                 db.add_log(product["id"], "unknown", None, f"检查异常: {e}")
+                result = {}
+            if result.get("code") == 429:
+                got_429 = True
+
+        # 4. 更新退避状态：出现 429 则升级，全部正常则重置
+        if got_429:
+            level = (state.get("level", 0) + 1) if state else 1
+            gap = min(BACKOFF_BASE * (BACKOFF_MULTIPLIER ** (level - 1)), BACKOFF_MAX)
+            _domain_backoff[domain] = {"level": level, "next_at": time.monotonic() + gap}
+        elif state:
+            _domain_backoff.pop(domain, None)
 
 
 def reschedule():
