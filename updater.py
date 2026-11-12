@@ -4,7 +4,7 @@
 - 检测：读取 GitHub 最新 Release（公开 API，无需认证），比较语义化版本；
 - 更新：下载 onedir 的 zip 包到临时目录并解压，启动独立批处理，
   等待当前进程退出后用 robocopy 镜像替换整个安装目录（exe + _internal），再重启。
-用户数据位于 %LOCALAPPDATA%\CigarMonitor，与安装目录隔离，整包替换不会触碰。
+用户数据位于 %LOCALAPPDATA%\\CigarMonitor，与安装目录隔离，整包替换不会触碰。
 所有网络操作均带超时与异常兜底，失败不影响监控主流程。
 """
 import json
