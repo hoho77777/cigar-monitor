@@ -2,8 +2,8 @@
 # 由 gen_version_info.py 自动生成，请勿手动编辑
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 1, 0, 0),
-    prodvers=(1, 1, 0, 0),
+    filevers=(1, 1, 1, 0),
+    prodvers=(1, 1, 1, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -17,8 +17,8 @@ VSVersionInfo(
         StringStruct('CompanyName', 'CigarMonitor'),
         StringStruct('FileDescription', '雪茄库存监控'),
         StringStruct('ProductName', '雪茄库存监控'),
-        StringStruct('FileVersion', '1.1.0'),
-        StringStruct('ProductVersion', '1.1.0'),
+        StringStruct('FileVersion', '1.1.1'),
+        StringStruct('ProductVersion', '1.1.1'),
         StringStruct('LegalCopyright', 'Local personal use'),
         StringStruct('OriginalFilename', 'CigarMonitor.exe')
       ]),
@@ -26,8 +26,8 @@ VSVersionInfo(
         StringStruct('CompanyName', 'CigarMonitor'),
         StringStruct('FileDescription', '雪茄库存监控'),
         StringStruct('ProductName', '雪茄库存监控'),
-        StringStruct('FileVersion', '1.1.0'),
-        StringStruct('ProductVersion', '1.1.0'),
+        StringStruct('FileVersion', '1.1.1'),
+        StringStruct('ProductVersion', '1.1.1'),
         StringStruct('LegalCopyright', 'Local personal use'),
         StringStruct('OriginalFilename', 'CigarMonitor.exe')
       ])
