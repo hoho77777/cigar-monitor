@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-"""自动检测与自动更新。
+"""自动检测与整包更新（onedir）。
 
 - 检测：读取 GitHub 最新 Release（公开 API，无需认证），比较语义化版本；
-- 更新：下载新 exe 到临时目录，启动独立批处理，等待当前进程退出后替换并重启。
+- 更新：下载 onedir 的 zip 包到临时目录并解压，启动独立批处理，
+  等待当前进程退出后用 robocopy 镜像替换整个安装目录（exe + _internal），再重启。
+用户数据位于 %LOCALAPPDATA%\CigarMonitor，与安装目录隔离，整包替换不会触碰。
 所有网络操作均带超时与异常兜底，失败不影响监控主流程。
 """
 import json
@@ -11,12 +13,15 @@ import re
 import sys
 import tempfile
 import urllib.request
+import zipfile
 
 from config import APP_VERSION, GITHUB_OWNER, GITHUB_REPO
 
 API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
-HTTP_TIMEOUT = 20
+HTTP_TIMEOUT = 30
 _EXE_NAME = "CigarMonitor.exe"
+_PKG_NAME = "CigarMonitor_update.zip"
+_EXTRACT_NAME = "CigarMonitor_extract"
 
 
 def _version_tuple(text):
@@ -37,7 +42,8 @@ def _http_get(url):
 
 def check_for_update():
     """返回更新信息 dict；无更新或出错时返回 None。
-    dict 字段：latest / current / notes / download_url / html_url。"""
+    dict 字段：latest / current / notes / download_url / html_url。
+    download_url 指向 onedir 的 zip 整包（兼容历史 .exe 资产）。"""
     try:
         data = json.loads(_http_get(API_URL).decode("utf-8"))
     except Exception:
@@ -48,12 +54,19 @@ def check_for_update():
         return None
 
     latest = tag.lstrip("vV").strip()
+    assets = data.get("assets", []) or []
     download_url = None
-    for asset in data.get("assets", []) or []:
-        name = str(asset.get("name") or "").lower()
-        if name.endswith(".exe"):
+    # 优先 zip 整包
+    for asset in assets:
+        if str(asset.get("name") or "").lower().endswith(".zip"):
             download_url = asset.get("browser_download_url")
             break
+    # 兼容：历史单 exe 资产
+    if not download_url:
+        for asset in assets:
+            if str(asset.get("name") or "").lower().endswith(".exe"):
+                download_url = asset.get("browser_download_url")
+                break
 
     if _version_tuple(latest) <= _version_tuple(APP_VERSION):
         return None
@@ -68,9 +81,9 @@ def check_for_update():
 
 
 def _download(url, progress=None):
-    """下载到临时文件，返回本地路径。progress(received, total) 可选。"""
+    """下载 zip 到临时文件，返回本地路径。progress(received, total) 可选。"""
     req = urllib.request.Request(url, headers={"User-Agent": "CigarMonitor"})
-    tmp_path = os.path.join(tempfile.gettempdir(), "CigarMonitor_new.exe")
+    tmp_path = os.path.join(tempfile.gettempdir(), _PKG_NAME)
     with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
         total = int(resp.headers.get("Content-Length") or 0)
         received = 0
@@ -89,16 +102,49 @@ def _download(url, progress=None):
     return tmp_path
 
 
-def _build_batch(target, new_exe):
-    """生成等待退出→替换→重启的批处理，返回路径。"""
+def _extract(zip_path):
+    """解压 zip 到临时目录，返回解压根目录；并定位含 CigarMonitor.exe 的应用目录。"""
+    extract_root = os.path.join(tempfile.gettempdir(), _EXTRACT_NAME)
+    if os.path.exists(extract_root):
+        import shutil
+        shutil.rmtree(extract_root, ignore_errors=True)
+    os.makedirs(extract_root, exist_ok=True)
+    with zipfile.ZipFile(zip_path) as zf:
+        zf.extractall(extract_root)
+
+    # 定位应用目录（兼容 zip 顶层是否带一层目录）
+    if os.path.exists(os.path.join(extract_root, _EXE_NAME)):
+        app_dir = extract_root
+    else:
+        app_dir = None
+        for name in os.listdir(extract_root):
+            sub = os.path.join(extract_root, name)
+            if os.path.isdir(sub) and os.path.exists(os.path.join(sub, _EXE_NAME)):
+                app_dir = sub
+                break
+        if app_dir is None:
+            for root, _dirs, files in os.walk(extract_root):
+                if _EXE_NAME in files:
+                    app_dir = root
+                    break
+    if not app_dir:
+        raise RuntimeError("更新包格式无效：解压后未找到 CigarMonitor.exe")
+    return extract_root, app_dir
+
+
+def _build_batch(install_dir, app_dir, extract_root, zip_path):
+    """生成等待退出→robocopy 镜像整目录→重启→清理的批处理，返回路径。"""
     batch = os.path.join(tempfile.gettempdir(), "cigar_update.bat")
-    # 批处理内容（CRLF，延迟扩展，避免中文路径问题）
+    exe_path = os.path.join(install_dir, _EXE_NAME)
     lines = [
         "@echo off",
         "setlocal enabledelayedexpansion",
         "chcp 65001 >nul",
-        f'set "TARGET={target}"',
-        f'set "NEW={new_exe}"',
+        f'set "SRC={app_dir}"',
+        f'set "DST={install_dir}"',
+        f'set "EXE={exe_path}"',
+        f'set "EXTRACT_ROOT={extract_root}"',
+        f'set "ZIP={zip_path}"',
         "set /a n=0",
         ":waitloop",
         f'tasklist /fi "imagename eq {_EXE_NAME}" 2>nul | find /i "{_EXE_NAME}" >nul',
@@ -108,8 +154,13 @@ def _build_batch(target, new_exe):
         "  >nul ping -n 2 127.0.0.1",
         "  goto waitloop",
         ")",
-        '>nul copy /y "%NEW%" "%TARGET%"',
-        'if exist "%TARGET%" start "" "%TARGET%"',
+        "rem 镜像同步：/MIR 删除目标多余文件，保证与新包完全一致",
+        'robocopy "%SRC%" "%DST%" /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:2',
+        "if %errorlevel% GEQ 8 goto cleanup",
+        'if exist "%EXE%" start "" "%EXE%"',
+        ":cleanup",
+        'rmdir /s /q "%EXTRACT_ROOT%"',
+        'del "%ZIP%"',
         ":end",
         '(goto) 2>nul & del "%~f0"',
         "",
@@ -120,16 +171,17 @@ def _build_batch(target, new_exe):
 
 
 def apply_update(download_url, quit_callback=None, progress=None):
-    """下载并应用更新，随后通过批处理在退出后替换并重启。
-    仅在打包（frozen）模式下可执行实际替换。"""
+    """下载并整包应用更新，随后通过批处理在退出后镜像替换安装目录并重启。
+    仅在打包（frozen）的 onedir 模式下执行实际替换。"""
     if not getattr(sys, "frozen", False):
         raise RuntimeError("开发模式下不执行自动更新，请使用打包后的程序")
     if not download_url:
-        raise RuntimeError("该版本未提供可下载的 exe 更新文件")
+        raise RuntimeError("该版本未提供可下载的更新包（zip）")
 
-    target = sys.executable
-    new_exe = _download(download_url, progress=progress)
-    batch = _build_batch(target, new_exe)
+    install_dir = os.path.dirname(os.path.abspath(sys.executable))
+    zip_path = _download(download_url, progress=progress)
+    extract_root, app_dir = _extract(zip_path)
+    batch = _build_batch(install_dir, app_dir, extract_root, zip_path)
 
     # 独立启动批处理（detached，不随主进程退出而终止）
     os.startfile(batch)
