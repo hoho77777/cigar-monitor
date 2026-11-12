@@ -5,7 +5,7 @@ import sys
 import socket
 
 # 软件版本（语义化版本：主.次.修订）
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 
 # GitHub 仓库（用于检测与下载更新）
 GITHUB_OWNER = "hoho77777"
@@ -75,3 +75,9 @@ REQUEST_TIMEOUT = 30
 CF_RETRIES = 6                  # Cloudflare 挑战最大重试次数
 CF_RETRY_WAIT = 2.5             # 重试间隔（秒）
 MAX_LOGS_KEPT = 1000            # 日志保留条数
+SAME_DOMAIN_GAP = 1.5           # 同一域名相邻请求最小间隔（秒），错峰避免触发限流
+# 站点级 429 自适应退避：连续限流时按 5→10→20 分钟拉长该站检查间隔
+BACKOFF_BASE = 300              # 退避基准（秒），首次 429 后按基准间隔再探测
+BACKOFF_MULTIPLIER = 2          # 每多连续一轮 429，间隔翻倍
+BACKOFF_MAX = 1200              # 退避封顶（秒），20 分钟
+NETWORK_RETRIES = 2             # 仅针对网络异常（非 429）的重试次数
