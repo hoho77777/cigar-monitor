@@ -19,28 +19,20 @@ CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页
 
 <table>
   <tr>
-    <td width="50%">
+    <td width="33%">
       <img src="./assets/readme/shot-main.png" width="100%" alt="主界面与监控列表，缺货状态一目了然">
     </td>
-    <td width="50%">
+    <td width="33%">
       <img src="./assets/readme/shot-search.png" width="100%" alt="中文搜索与品牌标签，搜威古洛即可找到对应商品">
+    </td>
+    <td width="33%">
+      <img src="./assets/readme/shot-filter.png" width="100%" alt="品牌标签在英文后标注中文，支持按品牌与有货筛选">
     </td>
   </tr>
   <tr>
     <td align="center"><b>监控总览</b></td>
     <td align="center"><b>中文搜索</b></td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="./assets/readme/shot-filter.png" width="100%" alt="品牌标签在英文后标注中文，支持按品牌与有货筛选">
-    </td>
-    <td width="50%">
-      <img src="./assets/readme/shot-calculator.png" width="100%" alt="雪茄到手计算器，按海关汇率与实时市场汇率计算到手总价与单支">
-    </td>
-  </tr>
-  <tr>
     <td align="center"><b>品牌筛选</b></td>
-    <td align="center"><b>到手计算器</b></td>
   </tr>
 </table>
 
@@ -57,11 +49,6 @@ CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页
 <details>
 <summary>查看「品牌筛选」大图</summary>
 <img src="./assets/readme/shot-filter.png" alt="品牌标签在英文后标注中文，支持按品牌与有货筛选">
-</details>
-
-<details>
-<summary>查看「到手计算器」大图</summary>
-<img src="./assets/readme/shot-calculator.png" alt="雪茄到手计算器，按海关汇率与实时市场汇率计算到手总价与单支">
 </details>
 
 ## 功能特性
