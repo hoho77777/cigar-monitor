@@ -5,7 +5,7 @@ import sys
 import socket
 
 # 软件版本（语义化版本：主.次.修订）
-APP_VERSION = "1.1.2"
+APP_VERSION = "1.2.0"
 
 # GitHub 仓库（用于检测与下载更新）
 GITHUB_OWNER = "hoho77777"
@@ -68,6 +68,14 @@ DEFAULT_SETTINGS = {
     "mail_from_name": "雪茄库存监控",
     "check_interval": "300",      # 轮询间隔（秒），默认 5 分钟
     "notify_mode": "change",      # change=仅缺货转有货时通知 | always=每次检查有货都通知
+    # 以下 notify_* 为旧版渠道开关，仅保留兼容历史数据；界面已无开关，
+    # 派发改为「系统托盘常开 + SMTP 填齐自动发邮件 + 绑定微信自动推送」。
+    "notify_system": "1",
+    "notify_email": "1",
+    "notify_wechat": "1",
+    # ClawBot 凭证与会话状态（JSON 文本，仅存本机 SQLite，不上传）
+    "clawbot_cred": "",
+    "clawbot_state": "",
 }
 
 # 抓取参数

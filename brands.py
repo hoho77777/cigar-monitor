@@ -9,7 +9,11 @@
 数据来源：Habanos S.A. 官方品牌体系（古巴 Habanos 全部品牌）
 与主要非古（非古巴）品牌。规范英文名统一采用无重音拼写，
 便于自动识别与中英文匹配。
+
+新增品牌只需在 BRAND_ZH 里加一行；识别用的英文词干会自动派生，
+不必再维护第二份清单。
 """
+import re
 
 # 规范英文名 -> (中文简称, 中文全称)
 BRAND_ZH = {
@@ -96,13 +100,59 @@ EN_CANONICAL = {
 }
 
 
+# 品牌名里的虚词/连接词，不参与自动派生（避免 "de / la / del" 变成品牌词干）
+_STEM_STOP = {
+    "del", "los", "las", "por", "and", "the", "for", "with",
+    "von", "van", "sur", "des", "les", "une", "una", "con",
+}
+
+
+def _stems_of(en):
+    """把规范英文名拆成可匹配的词干；顺带兼容复数词尾 s。"""
+    out = set()
+    for w in re.split(r"[^a-z0-9]+", str(en).lower()):
+        if not w or len(w) < 3 or w in _STEM_STOP:
+            continue
+        out.add(w)
+        if len(w) > 4 and w.endswith("s"):
+            out.add(w[:-1])
+    return out
+
+
+def _derive_stems():
+    """由 BRAND_ZH + EN_CANONICAL 生成词干表（单一数据源）。
+
+    被多个品牌共用的词（如 flor 同时属于 Flor de Cano 和
+    Flor de Rafael Gonzalez）无法判定归属，标记为歧义词干并忽略，
+    避免误把型号词当成品牌。人工映射始终优先。
+    """
+    owner = {}
+    for en in BRAND_ZH:
+        for w in _stems_of(en):
+            owner.setdefault(w, set()).add(en)
+    ambiguous = {w for w, ens in owner.items() if len(ens) > 1} - set(EN_CANONICAL)
+    table = dict(EN_CANONICAL)
+    for w, ens in owner.items():
+        if w not in ambiguous:
+            table.setdefault(w, next(iter(ens)))
+    return table, ambiguous
+
+
+STEM_TO_BRAND, AMBIGUOUS_STEMS = _derive_stems()
+
+
+def brand_stems():
+    """所有可识别的品牌词干，供 tagger.extract_tags 使用。"""
+    return set(STEM_TO_BRAND)
+
+
 def canonical_brand(name):
     """把自动识别出的品牌词干/名称归一到规范英文名。
 
     词库中无明确映射时，回退为首字母大写，保证输出始终是可读品牌名。
     """
     key = str(name or "").strip().lower()
-    return EN_CANONICAL.get(key, str(name).capitalize())
+    return STEM_TO_BRAND.get(key, str(name or "").capitalize())
 
 
 def zh_of(en):

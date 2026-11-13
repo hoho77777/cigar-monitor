@@ -103,7 +103,7 @@
       </div>
     </section>
 
-    <!-- 邮箱与监控设置 -->
+    <!-- 邮箱与监控设置（含微信通知） -->
     <section class="card collapsible" id="card-settings">
       <div class="card-head collapsible-head">
         <h2>发信邮箱与监控设置</h2>
@@ -153,6 +153,44 @@
           <button class="btn primary" id="btn-save-settings">保存设置</button>
           <button class="btn ghost" id="btn-test-email">发送测试邮件</button>
           <span class="hint" id="settings-msg"></span>
+        </div>
+        <p class="hint auto-notify-tip">通知渠道无需手动开启：系统托盘常开；填好上方 SMTP 即自动发邮件；下方绑定微信后即自动推送到微信。</p>
+
+        <div class="notify-section">
+          <div class="notify-section-head">
+            <h3>微信通知 · ClawBot</h3>
+            <span class="notify-free">免费</span>
+          </div>
+          <div class="clawbot-status">
+            <span class="clawbot-dot" id="clawbot-dot"></span>
+            <div>
+              <b id="clawbot-state-text">正在读取状态...</b>
+              <p class="hint" id="clawbot-state-tip">扫码绑定后，有货时会同时推送到微信</p>
+            </div>
+          </div>
+
+          <div class="clawbot-qr" id="clawbot-qr-box" hidden>
+            <div id="clawbot-qr"></div>
+            <div class="clawbot-qr-side">
+              <p id="clawbot-qr-msg">请用手机微信扫描二维码</p>
+              <p class="hint">手机微信需为最新版，并在「我 → 设置 → 插件」中启用 ClawBot。</p>
+              <a id="clawbot-qr-link" href="#" target="_blank" rel="noopener" class="hint">二维码打不开？点此打开链接</a>
+              <div id="clawbot-verify" hidden>
+                <div class="form-row">
+                  <input type="text" id="clawbot-verify-code" class="input" placeholder="输入手机微信显示的配对数字" maxlength="8">
+                  <button class="btn ghost small" id="btn-clawbot-verify">提交配对码</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row btns">
+            <button class="btn primary" id="btn-clawbot-bind">扫码绑定微信</button>
+            <button class="btn ghost" id="btn-clawbot-test">发送测试微信</button>
+            <button class="btn ghost" id="btn-clawbot-unbind">解绑</button>
+            <span class="hint" id="clawbot-msg"></span>
+          </div>
+          <p class="hint clawbot-note">微信官方通道，完全免费、无需注册第三方平台、凭证只存本机。系统托盘通知默认常开。</p>
         </div>
       </div>
     </section>
@@ -283,6 +321,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <script src="{{ url_for('static', filename='qrcode.min.js') }}"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
   <script src="{{ url_for('static', filename='calculator.js') }}"></script>
 </body>

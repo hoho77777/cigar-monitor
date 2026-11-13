@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""雪茄库存监控：本地 Web 管理 + 后台定时检查 + 邮件通知。"""
+"""雪茄库存监控：本地 Web 管理 + 后台定时检查 + 邮件 / 系统 / 微信通知。"""
 import json
 import os
 import re
@@ -22,6 +22,7 @@ import tagger
 import brands
 import updater
 import rates
+import clawbot
 
 app = Flask(
     __name__,
@@ -42,6 +43,52 @@ update_quit = None
 
 
 # ---------------- 检查与通知核心 ----------------
+def _mail_configured(s):
+    """SMTP 与收件人填齐即视为已启用邮件通知，无需额外开关。"""
+    return all(str(s.get(k) or "").strip()
+               for k in ("smtp_host", "smtp_port", "smtp_user", "smtp_pass", "mail_to"))
+
+
+def dispatch_notifications(product, pid, status, code):
+    """三路通知互不阻塞：系统托盘（常开）/ 邮件 / 微信 ClawBot。
+
+    渠道没有开关：系统托盘始终发；SMTP 填齐就发邮件；微信绑定后就推送。
+    未配置的一路静默跳过，不写失败日志。
+    返回 (任一渠道成功, 各渠道结果)，任一成功即视为已提醒。
+    """
+    settings = db.get_settings()
+    results = []
+
+    # 系统托盘默认常开，不读取开关，避免误关后到货完全无感
+    if system_notify is not None:
+        try:
+            system_notify(f"有货提醒：{product['name']}", "监控的雪茄已到货，点击查看商品页")
+            results.append({"channel": "系统通知", "ok": True, "message": "已弹出"})
+        except Exception as e:
+            results.append({"channel": "系统通知", "ok": False, "message": str(e)})
+
+    # 邮件：填齐 SMTP 即自动启用；未配置时静默跳过
+    if _mail_configured(settings):
+        try:
+            send_email(settings, stock_greeting(product), back_in_stock_html(product))
+            results.append({"channel": "邮件", "ok": True, "message": "已发送"})
+        except Exception as e:
+            results.append({"channel": "邮件", "ok": False, "message": str(e)})
+
+    # 微信：扫码绑定后自动启用；未绑定时静默跳过，避免每次到货都刷日志
+    if clawbot.get_credential(settings).get("bot_token"):
+        try:
+            ok, msg = clawbot.send_stock_alert(product)
+            results.append({"channel": "微信 ClawBot", "ok": ok, "message": msg})
+        except Exception as e:
+            results.append({"channel": "微信 ClawBot", "ok": False, "message": str(e)})
+
+    for r in results:
+        if not r["ok"]:
+            db.add_log(pid, status, code, "%s通知失败: %s" % (r["channel"], r["message"]))
+    return any(r["ok"] for r in results), results
+
+
 def perform_check(pid):
     product = db.get_product(pid)
     if not product:
@@ -64,7 +111,7 @@ def perform_check(pid):
         db.update_status(pid, "unknown", detail)
         return {"id": pid, "status": "unknown", "detail": detail, "notified": False, "code": code}
 
-    # 是否需要发邮件
+    # 是否触发提醒（沿用原有策略：仅缺货转有货，或每次有货）
     should_notify = False
     if status == "in_stock":
         mode = db.get_settings().get("notify_mode", "change")
@@ -76,20 +123,11 @@ def perform_check(pid):
     result = {"id": pid, "status": status, "detail": detail, "notified": False, "code": code}
     if should_notify:
         fresh = with_tags(db.get_product(pid))
-        # 右下角系统通知（独立于邮件，失败不影响邮件发送）
-        if system_notify is not None:
-            try:
-                system_notify(f"有货提醒：{fresh['name']}", "监控的雪茄已到货，点击查看商品页")
-            except Exception:
-                pass
-        try:
-            send_email(db.get_settings(), stock_greeting(fresh), back_in_stock_html(fresh))
+        any_ok, channels = dispatch_notifications(fresh, pid, status, code)
+        result["channels"] = channels
+        if any_ok:
             db.update_status(pid, status, detail, notified=True)
             result["notified"] = True
-        except Exception as e:
-            mail_err = f"邮件发送失败: {e}"
-            db.add_log(pid, status, code, mail_err)
-            result["mail_error"] = str(e)
     return result
 
 
@@ -139,7 +177,11 @@ def reschedule():
     job = scheduler.get_job(JOB_ID)
     if job:
         job.remove()
-    interval = max(30, int(db.get_settings().get("check_interval", 300)))
+    try:
+        interval = int(db.get_settings().get("check_interval", 300))
+    except (TypeError, ValueError):
+        interval = 300
+    interval = max(30, interval)
     scheduler.add_job(
         run_check_all, "interval", seconds=interval, id=JOB_ID,
         max_instances=1, coalesce=True,
@@ -176,6 +218,8 @@ def start_scheduler():
     reschedule()
     if not scheduler.running:
         scheduler.start()
+    # 微信 ClawBot 会话保活：后台长轮询维护 context_token（未绑定时空转）
+    clawbot.start_keepalive()
 
 
 def stop_scheduler():
@@ -304,6 +348,58 @@ def test_email():
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+
+# ---------------- 微信 ClawBot ----------------
+@app.route("/api/clawbot/status")
+def clawbot_status():
+    """绑定与保活状态（只读，不发起网络请求）。"""
+    return jsonify(clawbot.status())
+
+
+@app.route("/api/clawbot/qr/start", methods=["POST"])
+def clawbot_qr_start():
+    try:
+        return jsonify(clawbot.start_login())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/clawbot/qr/status")
+def clawbot_qr_status():
+    return jsonify(clawbot.login_status(request.args.get("session", "")))
+
+
+@app.route("/api/clawbot/qr/verify", methods=["POST"])
+def clawbot_qr_verify():
+    data = request.get_json(force=True)
+    ok = clawbot.submit_verify_code(data.get("session", ""), data.get("code", ""))
+    return jsonify({"ok": ok})
+
+
+@app.route("/api/clawbot/unbind", methods=["POST"])
+def clawbot_unbind():
+    clawbot.clear_binding()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/clawbot/test", methods=["POST"])
+def clawbot_test():
+    # 还没拿到 context_token 时，微信侧不允许 bot 主动下发（会返回 -2 prepare
+    # failed）。此时不再发注定失败的请求，直接给出可执行的下一步。
+    try:
+        ready = clawbot.refresh_tokens_once() > 0
+    except Exception:
+        ready = False
+    if not ready:
+        return jsonify({
+            "error": "还差一步：请在微信里给 ClawBot 发任意一条消息，界面会自动变为「通道就绪」，然后再点「发送测试微信」",
+            "need_activation": True,
+        }), 400
+    ok, msg = clawbot.send_text(clawbot.test_message())
+    if ok:
+        return jsonify({"ok": True, "message": msg})
+    return jsonify({"error": msg}), 400
 
 
 # ---------------- 版本与自动更新 ----------------

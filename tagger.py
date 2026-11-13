@@ -8,15 +8,9 @@ import re
 
 import brands
 
-# 品牌（按需扩充；多词品牌如 Sancho Panza 由 brands.EN_CANONICAL 归一）
-BRANDS = {
-    "punch", "sancho", "panza", "cohiba", "montecristo", "romeo", "julieta",
-    "bolivar", "partagas", "trinidad", "hoyo", "monterrey", "quintero",
-    "vegas", "robaina", "cuaba", "diplomaticos", "juan", "lopez", "rafael",
-    "gonzalez", "cristobal", "rey", "davidoff", "camacho",
-    "padron", "arturo", "fuente", "macanudo", "upmann", "larranaga",
-    "veguero",
-}
+# 品牌词干由 brands.BRAND_ZH / EN_CANONICAL 自动派生，单一数据源。
+# 想支持新品牌，只需在 brands.py 的 BRAND_ZH 里加一行中文对照。
+BRANDS = brands.brand_stems()
 # 产地（仅过滤，不产生标签）
 ORIGINS = {
     "cuba", "cuban", "cubain", "cubains", "cubano", "cubanos",
@@ -49,7 +43,9 @@ def _stem(word):
 
 
 def _tokens(text):
-    text = re.sub(r"a\s*/\s*t|a\s*-\s*t", " at ", text, flags=re.IGNORECASE)
+    # 规格 "A/T" 归一为 at；加单词边界，避免把 "cubana-turquinos" 里的
+    # "a-t" 误当成 A/T 拆开（会造出 Urquino 这类垃圾型号词）
+    text = re.sub(r"(?<![a-z])a\s*(?:/|-)\s*t(?![a-z])", " at ", text, flags=re.IGNORECASE)
     return [t for t in re.split(r"[^a-z0-9]+", text.lower()) if t]
 
 
@@ -73,6 +69,8 @@ def extract_tags(name, url):
             continue
         if stem in ORIGINS or stem in SPECS or raw in SPECS:
             continue  # 产地/规格仅过滤
+        if stem in brands.AMBIGUOUS_STEMS:
+            continue  # 多品牌共用的词（如 flor）无法判定，不产生标签
         if stem in BRANDS:
             add("brand", brands.canonical_brand(stem))
         else:
