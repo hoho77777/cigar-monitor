@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="htitle hdesc">
   <title id="htitle">CigarMonitor · 雪茄库存监控工具</title>
-  <desc id="hdesc">本地定时监控雪茄商品库存，缺货转有货时立即邮件与系统通知，数据全部保存在本机，免费开源。</desc>
+  <desc id="hdesc">本地定时监控雪茄商品库存，缺货转有货时立即微信、邮件与系统通知，数据全部保存在本机，免费开源。</desc>
 
   <defs>
     <linearGradient id="hbg" x1="0" y1="0" x2="1" y2="1">
@@ -33,9 +33,9 @@
 
     <text x="64" y="158" font-size="66" font-weight="800" fill="#1E2328" letter-spacing="-1.5">CigarMonitor</text>
     <text x="66" y="206" font-size="28" font-weight="700" fill="#334155">雪茄库存监控工具</text>
-    <text x="66" y="258" font-size="20" fill="#64748B">定时盯库存，缺货转有货立即邮件 + 系统通知</text>
+    <text x="66" y="258" font-size="20" fill="#64748B">定时盯库存，缺货转有货立即微信 + 邮件 + 系统通知</text>
 
-    <text x="66" y="330" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#94A3B8">v1.1.2  ·  Python  ·  Windows  ·  数据存本机</text>
+    <text x="66" y="330" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#94A3B8">v1.2.0  ·  Python  ·  Windows  ·  数据存本机</text>
   </g>
 
   <!-- 右侧视觉：扫描环 + 监控面板 -->
