@@ -145,8 +145,10 @@ CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页
 仓库不包含二进制文件（图标、exe、数据库均通过 `.gitignore` 排除）。
 
 1. 安装依赖：`pip install -r requirements.txt`
-2. 生成图标：`python make_icons.py`（有源图则从源图生成，无源图自动绘制「深色圆角底 + 金雪茄」默认图标）
-3. 打包：直接运行 `build.bat`（缺图标时会先自动执行上一步）
+2. 准备图标：把源图 `icon-source.png` 放到 `assets/` 目录，然后执行 `python make_icons.py` 生成全套 ico / png
+3. 打包：直接运行 `build.bat`（缺 `assets/cigar.ico` 时会先自动执行上一步，缺源图则**停止构建**并提示）
+
+> 图标源图不随仓库分发。没有源图时 `make_icons.py` 会报错退出，避免悄悄套用占位图标；若你只想要一个能跑通构建的占位图标，先设置环境变量 `CIGAR_ALLOW_DEFAULT_ICON=1` 再执行。占位图标与官方图标外观不同，不要用于正式发布。
 
 首次启动默认不预置任何监控项；如需预置，可在 `seed/products.json` 中加入条目。
 
