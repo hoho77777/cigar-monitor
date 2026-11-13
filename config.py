@@ -5,7 +5,7 @@ import sys
 import socket
 
 # 软件版本（语义化版本：主.次.修订）
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 
 # GitHub 仓库（用于检测与下载更新）
 GITHUB_OWNER = "hoho77777"

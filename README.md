@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.1-2563EB" alt="version 1.1.1">
+  <img src="https://img.shields.io/badge/version-1.1.2-2563EB" alt="version 1.1.2">
   <img src="https://img.shields.io/badge/python-3.x-3776AB" alt="python">
   <img src="https://img.shields.io/badge/license-MIT-10B981" alt="license MIT">
   <img src="https://img.shields.io/badge/platform-Windows-0078D4" alt="platform windows">
@@ -72,7 +72,7 @@ CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页
 
 ### 桌面版（推荐）
 
-1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases) 下载安装包 `CigarMonitor_v1.1.1_setup.exe` 双击安装（自动建桌面快捷方式）；也可下载免安装的 `CigarMonitor_v1.1.1_windows.zip` 解压使用，整包包含 `CigarMonitor.exe` 与 `_internal`，两者必须放在一起，不要只移动 exe
+1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases) 下载安装包 `CigarMonitor_v1.1.2_setup.exe` 双击安装（自动建桌面快捷方式）；也可下载免安装的 `CigarMonitor_v1.1.2_windows.zip` 解压使用，整包包含 `CigarMonitor.exe` 与 `_internal`，两者必须放在一起，不要只移动 exe
 2. 双击 `CigarMonitor.exe`，稍候弹出原生窗口
 3. 在「发信邮箱与监控设置」填入邮箱账号和 **SMTP 授权码**，保存后可点「发送测试邮件」
 4. 顶部粘贴商品网址即可添加监控，列表默认空，由你自行添加

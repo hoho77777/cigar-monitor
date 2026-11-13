@@ -410,3 +410,126 @@ td a:hover { text-decoration: underline; }
 .stock-check input:checked ~ .stock-box { background: var(--accent); border-color: var(--accent); }
 .stock-check input:checked ~ .stock-box::after { transform: rotate(-45deg) scale(1); }
 .stock-label { white-space: nowrap; }
+
+/* ============ 雪茄到手计算器 ============ */
+.calc-modal { width: 880px; max-width: calc(100vw - 40px); height: 620px; max-height: 88vh; }
+.calc-modal .modal-body {
+  display: flex; flex-direction: column; flex: 1; min-height: 0;
+  padding: 6px 24px 24px;
+}
+.calc-period { color: var(--muted); font-size: 12px; white-space: nowrap; margin: 0 0 16px; }
+.calc-wrap {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+  gap: 24px; align-items: stretch; flex: 1; min-height: 0;
+}
+.calc-inputs { display: flex; flex-direction: column; gap: 16px; }
+.calc-inputs label { color: var(--text); font-weight: 600; }
+.calc-inputs .input { width: 100%; font-weight: 400; }
+.calc-two { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; }
+.calc-inputs .hint { margin: 0; line-height: 1.5; }
+
+/* 输入框货币符号前缀 */
+.input-affix { position: relative; }
+.input-affix .input { padding-left: 34px; }
+.input-prefix {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); font-size: 14px; font-weight: 600; pointer-events: none;
+}
+
+/* 自定义币种下拉（右侧显示实时市场汇率） */
+.calc-field-label { margin: 0 0 7px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.calc-dropdown { position: relative; }
+.calc-dd-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text);
+  border-radius: 10px; padding: 10px 13px; font-size: 14px; cursor: pointer; font-family: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+.calc-dd-trigger:focus { border-color: var(--text); box-shadow: 0 0 0 3px rgba(29,29,31,.08); outline: none; }
+.cd-left { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.cd-flag { font-size: 16px; }
+.cd-name { font-weight: 600; white-space: nowrap; }
+.cd-right { display: inline-flex; align-items: center; gap: 8px; }
+.cd-rate { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.cd-chevron { width: 16px; height: 16px; color: var(--muted); transition: transform .2s; }
+.calc-dropdown.open .cd-chevron { transform: rotate(180deg); }
+.calc-dd-panel {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 30;
+  background: #fff; border: 1px solid var(--separator); border-radius: 14px;
+  box-shadow: 0 12px 34px rgba(0,0,0,.14); padding: 6px;
+  max-height: 300px; overflow-y: auto; display: none;
+}
+.calc-dropdown.open .calc-dd-panel { display: block; animation: maskIn .15s ease; }
+.cd-row {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  border: none; background: transparent; padding: 9px 10px; border-radius: 9px;
+  cursor: pointer; font-size: 13px; font-family: inherit; text-align: left;
+}
+.cd-row:hover { background: var(--soft); }
+.cd-row.sel { background: rgba(29,29,31,.07); }
+.cd-row .cd-flag { font-size: 15px; }
+.cd-row .cd-name { font-weight: 500; }
+.cd-row-rate { color: var(--text); font-weight: 600; white-space: nowrap; }
+
+.calc-result {
+  background: var(--soft); border: 1px solid var(--separator);
+  border-radius: 16px; padding: 22px;
+  display: flex; flex-direction: column; min-height: 0; overflow-y: auto;
+}
+.calc-empty { margin: auto; color: var(--muted); font-size: 13px; }
+
+/* ---- 简洁结果面板（mcigar 式结构，软件配色） ---- */
+.cr-title { margin: 0 0 14px; font-size: 13px; font-weight: 700; color: var(--text); }
+.cr-formula {
+  display: grid; grid-template-columns: 1fr auto 1fr auto 1fr;
+  align-items: center; gap: 6px;
+  background: #fff; border: 1px solid var(--separator);
+  border-radius: 14px; padding: 16px 10px;
+}
+.crf-item { min-width: 0; text-align: center; }
+.crf-label { margin: 0 0 6px; color: var(--muted); font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.crf-val { font-size: 15px; font-weight: 700; color: var(--text); display: block; white-space: nowrap; }
+.crf-plus { color: var(--muted); font-size: 14px; font-weight: 600; }
+.crf-badge {
+  background: rgba(52,199,89,.16); color: #1c883f;
+  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 6px;
+}
+.crf-badge.tax { background: rgba(255,149,0,.16); color: #c96a00; }
+
+.cr-total { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; gap: 12px; }
+.cr-total > span { color: var(--muted); font-size: 13px; }
+.cr-total b { font-size: 26px; font-weight: 700; letter-spacing: -.02em; color: var(--text); white-space: nowrap; }
+.cr-unit { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; gap: 12px; }
+.cr-unit > span { color: var(--muted); font-size: 13px; }
+.cr-unit b { font-size: 16px; font-weight: 700; color: var(--text); white-space: nowrap; }
+
+.cr-risk {
+  margin: 14px 0 0; padding: 9px 12px; border-radius: 11px;
+  background: rgba(255,59,48,.1); color: #d73028; font-size: 11.5px; line-height: 1.5;
+}
+.cr-note { margin: 12px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+
+/* 折叠明细 */
+.cr-detail-toggle {
+  display: flex; align-items: center; gap: 6px; margin: 16px 0 0;
+  border: none; background: transparent; color: var(--muted);
+  font-size: 12px; font-weight: 600; cursor: pointer; padding: 0; font-family: inherit;
+}
+.cr-detail-toggle svg { width: 14px; height: 14px; transition: transform .2s; }
+.cr-detail-toggle.open svg { transform: rotate(180deg); }
+.cr-detail {
+  margin-top: 10px; padding: 10px 12px; border-radius: 12px;
+  background: #fff; border: 1px solid var(--separator);
+}
+.cr-detail .drow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 12px; }
+.cr-detail .drow span { color: var(--muted); }
+.cr-detail .drow b { color: var(--text); font-weight: 600; white-space: nowrap; }
+
+.cr-rules { margin: 16px 0 0; padding: 12px 0 0; border-top: 1px solid var(--separator); list-style: none; }
+.cr-rules li { position: relative; padding-left: 14px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.cr-rules li::before { content: "·"; position: absolute; left: 4px; }
+
+@media (max-width: 860px) {
+  .calc-wrap { grid-template-columns: 1fr; }
+  .calc-two { grid-template-columns: 1fr 1fr; }
+}

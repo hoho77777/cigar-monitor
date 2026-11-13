@@ -21,6 +21,7 @@ from notifier import send_email, back_in_stock_html, test_email_html, stock_gree
 import tagger
 import brands
 import updater
+import rates
 
 app = Flask(
     __name__,
@@ -355,6 +356,73 @@ def save_address():
     addr = {k: str(data.get(k, "")).strip() for k in DEFAULT_ADDRESS}
     db.save_settings({"en_address": json.dumps(addr, ensure_ascii=False)})
     return jsonify(addr)
+
+
+# ---------------- 雪茄到手计算器 ----------------
+@app.route("/api/calculator/rates")
+def calculator_rates():
+    return jsonify(rates.get_all())
+
+
+@app.route("/api/calculator/calculate", methods=["POST"])
+def calculator_calculate():
+    data = request.get_json(force=True)
+    code = str(data.get("currency", "EUR")).upper()
+    if code not in rates.CURRENCY_CODES:
+        return jsonify({"error": "不支持的货币"}), 400
+    try:
+        price = float(data.get("price", 0) or 0)
+        count = int(float(data.get("count", 1) or 1))
+        shipping = float(data.get("shipping", 0) or 0)
+    except (TypeError, ValueError):
+        return jsonify({"error": "请输入有效数字"}), 400
+    if price < 0 or shipping < 0 or count < 1:
+        return jsonify({"error": "数值不合法"}), 400
+
+    live = rates.get_live_rates()
+    customs = rates.get_customs_rates()
+    live_rate = live["rates"][code]
+    customs_rate = customs["rates"][code]
+
+    goods_cny = round(price * live_rate, 2)                 # 商品人民币价（市场汇率）
+    shipping_cny = round(shipping * live_rate, 2)          # 人民币运费（市场汇率，不入税基）
+    taxable_raw = price * customs_rate                     # 海关计税价格（海关汇率）
+    taxable_base = round(taxable_raw, 2)
+    pre_tax = round(taxable_raw * 0.5, 2)                  # 免征前完整税额（烟草 50%）
+
+    # 应征税额 ≤50 元可能免征：给 0～全额区间；否则按完整税额单值
+    maybe_exempt = pre_tax <= 50
+    if maybe_exempt:
+        tax_low, tax_high = 0.0, pre_tax
+    else:
+        tax_low = tax_high = pre_tax
+
+    total_low = round(goods_cny + shipping_cny + tax_low, 2)
+    total_high = round(goods_cny + shipping_cny + tax_high, 2)
+    over_limit = taxable_base > 2000                       # 超寄递限值（退运/货物办理风险）
+
+    return jsonify({
+        "currency": code,
+        "inputs": {"price": price, "count": count, "shipping": shipping},
+        "rates": {"live": live_rate, "customs": customs_rate,
+                  "live_source": live.get("source"),
+                  "customs_source": customs.get("source"),
+                  "customs_period": customs.get("period"),
+                  "customs_date": customs.get("actual_date"),
+                  "stale": bool(live.get("stale") or customs.get("stale"))},
+        "goods_cny": goods_cny,
+        "shipping_cny": shipping_cny,
+        "taxable_base": taxable_base,
+        "pre_tax": pre_tax,
+        "maybe_exempt": maybe_exempt,
+        "tax_low": tax_low,
+        "tax_high": tax_high,
+        "total_low": total_low,
+        "total_high": total_high,
+        "unit_low": round(total_low / count, 2),
+        "unit_high": round(total_high / count, 2),
+        "over_limit": over_limit,
+    })
 
 
 # ---------------- 日志 ----------------

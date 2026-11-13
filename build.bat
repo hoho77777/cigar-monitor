@@ -12,7 +12,7 @@ if not exist "assets\cigar.ico" (
 )
 
 echo [build] PyInstaller packaging...
-python -m PyInstaller --noconfirm --onefile --windowed --name CigarMonitor ^
+python -m PyInstaller --noconfirm --onedir --windowed --name CigarMonitor ^
   --icon "assets\cigar.ico" ^
   --version-file "version_info.txt" ^
   --collect-all curl_cffi ^
@@ -30,5 +30,5 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo [done] Output: dist\CigarMonitor.exe
+echo [done] Output: dist\CigarMonitor\ (folder)
 pause

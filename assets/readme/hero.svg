@@ -35,7 +35,7 @@
     <text x="66" y="206" font-size="28" font-weight="700" fill="#334155">雪茄库存监控工具</text>
     <text x="66" y="258" font-size="20" fill="#64748B">定时盯库存，缺货转有货立即邮件 + 系统通知</text>
 
-    <text x="66" y="330" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#94A3B8">v1.1.1  ·  Python  ·  Windows  ·  数据存本机</text>
+    <text x="66" y="330" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#94A3B8">v1.1.2  ·  Python  ·  Windows  ·  数据存本机</text>
   </g>
 
   <!-- 右侧视觉：扫描环 + 监控面板 -->

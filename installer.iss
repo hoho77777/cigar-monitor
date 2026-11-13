@@ -1,7 +1,7 @@
 ; CigarMonitor 用户级安装脚本（Inno Setup 6）
 ; 固定 AppId，后续版本沿用，以便识别为同一应用并就地升级。
 #define MyAppName "CigarMonitor"
-#define MyAppVersion "1.1.1"
+#define MyAppVersion "1.1.2"
 #define MyAppPublisher "hoho77777"
 #define MyAppExe "CigarMonitor.exe"
 
@@ -16,7 +16,7 @@ DefaultDirName={localappdata}\Programs\CigarMonitor
 DefaultGroupName=CigarMonitor
 DisableProgramGroupPage=yes
 OutputDir=dist
-OutputBaseFilename=CigarMonitor_v1.1.1_setup
+OutputBaseFilename=CigarMonitor_v1.1.2_setup
 SetupIconFile=assets\cigar.ico
 UninstallDisplayIcon={app}\{#MyAppExe}
 Compression=lzma2
@@ -28,10 +28,10 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ; 卸载仅删除安装目录，数据与设置自动保留。
 
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: checkedonce
+Name: "desktopicon"; Description: "创建桌面快捷方式(&D)"; GroupDescription: "附加选项:"
 
 [Files]
 Source: "dist\CigarMonitor\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -41,4 +41,4 @@ Name: "{userprograms}\CigarMonitor"; Filename: "{app}\{#MyAppExe}"
 Name: "{userdesktop}\CigarMonitor"; Filename: "{app}\{#MyAppExe}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExe}"; Description: "Launch CigarMonitor now"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExe}"; Flags: nowait postinstall skipifsilent

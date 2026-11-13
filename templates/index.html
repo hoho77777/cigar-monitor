@@ -50,6 +50,9 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           </button>
         </div>
+        <button class="round-icon" id="btn-calculator" title="到手计算器" aria-label="到手计算器">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+        </button>
         <button class="round-icon" id="btn-address" title="英文地址" aria-label="英文地址">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
         </button>
@@ -224,7 +227,63 @@
     </div>
   </div>
 
+  <!-- 雪茄到手计算器弹窗 -->
+  <div class="modal-mask" id="calculator-modal" aria-hidden="true">
+    <div class="modal calc-modal" role="dialog" aria-modal="true" aria-labelledby="calc-modal-title">
+      <div class="modal-head">
+        <h3 id="calc-modal-title">雪茄到手计算器 <span class="modal-sub">Landed Cost</span></h3>
+        <button class="modal-close" id="calc-modal-close" aria-label="关闭">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="calc-period" id="calc-period">海关汇率加载中…</p>
+        <div class="calc-wrap">
+          <div class="calc-inputs">
+            <div class="calc-field">
+              <p class="calc-field-label">订单币种</p>
+              <div class="calc-dropdown" id="calc-dropdown">
+                <button type="button" class="calc-dd-trigger" id="calc-dd-trigger">
+                  <span class="cd-left">
+                    <span class="cd-flag" id="cd-flag">🇪🇺</span>
+                    <span class="cd-name" id="cd-name">EUR · 欧元</span>
+                  </span>
+                  <span class="cd-right">
+                    <span class="cd-rate" id="cd-rate">1 EUR = ¥7.3984</span>
+                    <svg class="cd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  </span>
+                </button>
+                <div class="calc-dd-panel" id="calc-dd-panel"></div>
+              </div>
+            </div>
+            <label>雪茄商品实付总价（外币，整笔金额）
+              <div class="input-affix">
+                <span class="input-prefix" id="price-prefix">€</span>
+                <input type="number" id="calc-price" class="input" min="0" step="0.01" inputmode="decimal" placeholder="如 12.15">
+              </div>
+            </label>
+            <div class="calc-two">
+              <label>雪茄支数
+                <input type="number" id="calc-count" class="input" min="1" step="1" value="1">
+              </label>
+              <label>国际运费（外币，免运费填 0）
+                <div class="input-affix">
+                  <span class="input-prefix" id="ship-prefix">€</span>
+                  <input type="number" id="calc-shipping" class="input" min="0" step="0.01" inputmode="decimal" placeholder="如 3.68">
+                </div>
+              </label>
+            </div>
+            <p class="hint">商品填整笔实付总价、不是单支价格；支数只用于算单支到手价；单独列明的运费不进入计税基数。</p>
+          </div>
+
+          <div class="calc-result" id="calc-result">
+            <div class="calc-empty">填写左侧金额，自动估算到手价</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}"></script>
 </body>
 </html>
