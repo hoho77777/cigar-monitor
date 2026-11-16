@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CigarMonitor · 雪茄库存监控工具</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111'/%3E%3Cpath d='M8 20l11-11a3.5 3.5 0 015 5L13 25' stroke='%23d9a441' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='21' cy='11' r='1.6' fill='%23f4c96b'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f5f5f7;
+  --card:#ffffff;
+  --ink:#1d1d1f;
+  --sub:#6e6e73;
+  --line:#e6e6eb;
+  --green:#34c759;
+  --red:#ff3b30;
+  --blue:#0071e3;
+  --blue-soft:#eef4ff;
+  --radius:20px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  letter-spacing:-.01em;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:56px 24px 72px}
+.section-head{font-size:28px;font-weight:700;letter-spacing:-.02em;margin-bottom:24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:48px}
+
+/* ===== Hero ===== */
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);font-weight:500;margin-bottom:18px}
+.eyebrow .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.hero h1{font-size:56px;font-weight:700;letter-spacing:-.03em;line-height:1.05;margin-bottom:14px}
+.hero .role{font-size:22px;font-weight:600;color:var(--ink);margin-bottom:14px}
+.hero .desc{font-size:16px;color:var(--sub);max-width:420px;margin-bottom:26px}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--sub);font-variant-numeric:tabular-nums}
+.meta span{display:inline-flex;align-items:center}
+.meta .sep{color:var(--line)}
+
+/* 监控列表示意 */
+.mock{background:#fafafc;border:1px solid var(--line);border-radius:16px;padding:22px}
+.mock-title{font-size:14px;font-weight:600;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+.mock-title .bell{width:22px;height:22px;color:var(--ink)}
+.mock-row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.mock-row:last-child{margin-bottom:0}
+.mock-dot{width:10px;height:10px;border-radius:50%;flex:none}
+.mock-bars{flex:1;display:flex;flex-direction:column;gap:6px}
+.mock-bar{height:8px;border-radius:5px;background:#e3e3e8}
+.mock-bar.short{width:62%}
+.mock-badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;flex:none}
+.b-out{background:#ffe8e6;color:var(--red)}
+.b-in{background:#e3f8e9;color:#1a9e4d}
+
+/* ===== 工作原理 ===== */
+.workflow{margin-top:64px}
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:0;align-items:start}
+.flow-item{position:relative;text-align:center;padding:0 12px}
+.flow-ic{width:76px;height:76px;border-radius:50%;background:var(--blue-soft);display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.flow-ic svg{width:34px;height:34px;color:var(--blue)}
+.flow-item h4{font-size:16px;font-weight:600;margin-bottom:6px}
+.flow-item p{font-size:13px;color:var(--sub)}
+.flow-item:not(:last-child)::after{content:"";position:absolute;top:38px;right:-9px;width:18px;height:2px;background:var(--line)}
+
+/* ===== 核心能力 ===== */
+.features{margin-top:64px}
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.fitem{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px}
+.fitem .fic{width:40px;height:40px;border-radius:11px;background:var(--blue-soft);display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.fitem .fic svg{width:21px;height:21px;color:var(--blue)}
+.fitem h4{font-size:16px;font-weight:600;margin-bottom:8px}
+.fitem p{font-size:13.5px;color:var(--sub)}
+
+/* ===== 下载 ===== */
+.download{margin-top:64px}
+.dl-card{display:grid;grid-template-columns:1fr auto;gap:32px;align-items:center}
+.dl-card h3{font-size:22px;font-weight:700;margin-bottom:10px}
+.dl-card p{font-size:14px;color:var(--sub);max-width:480px}
+.dl-btns{display:flex;flex-direction:column;gap:12px;min-width:240px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px 22px;border-radius:12px;font-size:15px;font-weight:600;text-decoration:none;border:1px solid transparent;white-space:nowrap}
+.btn-primary{background:var(--ink);color:#fff}
+.btn-ghost{background:#fff;color:var(--ink);border-color:var(--line)}
+.btn svg{width:18px;height:18px}
+.btn small{font-weight:400;opacity:.7;font-size:12px}
+
+footer{margin-top:64px;text-align:center;font-size:13px;color:var(--sub)}
+footer a{color:var(--ink);text-decoration:none;font-weight:500}
+
+@media (max-width:860px){
+  .wrap{padding:32px 16px 48px}
+  .card{padding:28px}
+  .hero{grid-template-columns:1fr;gap:28px}
+  .hero h1{font-size:42px}
+  .flow{grid-template-columns:repeat(2,1fr);gap:32px 0}
+  .flow-item:not(:last-child)::after{display:none}
+  .fgrid{grid-template-columns:1fr}
+  .dl-card{grid-template-columns:1fr}
+  .dl-btns{min-width:0}
+}
+@media (max-width:560px){
+  .card{padding:22px}
+  .flow{grid-template-columns:1fr;gap:28px}
+  .flow-item{padding:0}
+  .flow-ic{width:68px;height:68px}
+  .hero h1{font-size:36px}
+  .section-head{font-size:24px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== Hero ===== -->
+  <section class="card hero">
+    <div>
+      <div class="eyebrow"><span class="dot"></span>本地部署 · 免费开源</div>
+      <h1>CigarMonitor</h1>
+      <div class="role">雪茄库存监控工具</div>
+      <p class="desc">定时盯库存，缺货转有货立即通过邮件、Windows 通知与微信提醒；同时是标准 MCP server，可直接接入 AI 用语音或文字操作。</p>
+      <div class="meta">
+        <span>v1.3.0</span><span class="sep">·</span>
+        <span>Python</span><span class="sep">·</span>
+        <span>Windows</span><span class="sep">·</span>
+        <span>数据存本机</span>
+      </div>
+    </div>
+    <div class="mock">
+      <div class="mock-title">监控列表
+        <svg class="bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      </div>
+      <div class="mock-row">
+        <span class="mock-dot" style="background:var(--red)"></span>
+        <span class="mock-bars"><span class="mock-bar"></span><span class="mock-bar short"></span></span>
+        <span class="mock-badge b-out">缺货</span>
+      </div>
+      <div class="mock-row">
+        <span class="mock-dot" style="background:var(--green)"></span>
+        <span class="mock-bars"><span class="mock-bar"></span><span class="mock-bar short"></span></span>
+        <span class="mock-badge b-in">有货</span>
+      </div>
+      <div class="mock-row">
+        <span class="mock-dot" style="background:var(--red)"></span>
+        <span class="mock-bars"><span class="mock-bar"></span><span class="mock-bar short"></span></span>
+        <span class="mock-badge b-out">缺货</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 工作原理 ===== -->
+  <section class="workflow">
+    <h2 class="section-head">工作原理</h2>
+    <div class="card">
+      <div class="flow">
+        <div class="flow-item">
+          <div class="flow-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></div>
+          <h4>粘贴商品网址</h4><p>添加即自动首次检查</p>
+        </div>
+        <div class="flow-item">
+          <div class="flow-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          <h4>后台定时巡检</h4><p>默认 5 分钟，可调</p>
+        </div>
+        <div class="flow-item">
+          <div class="flow-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="10" r="3.2"/><circle cx="16" cy="15" r="2.4" fill="currentColor" stroke="none"/></svg></div>
+          <h4>解析库存状态</h4><p>结构化数据 + 关键词</p>
+        </div>
+        <div class="flow-item">
+          <div class="flow-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+          <h4>立即通知</h4><p>邮件 + Windows + 微信</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 核心能力 ===== -->
+  <section class="features">
+    <h2 class="section-head">核心能力</h2>
+    <div class="fgrid">
+      <div class="fitem">
+        <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/></svg></div>
+        <h4>标准 MCP server</h4>
+        <p>开放 8 个工具，不内置模型，任意支持 MCP 的 AI 都能接入，用语音或文字查库存、加监控、算到手价。</p>
+      </div>
+      <div class="fitem">
+        <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h4>接入 AI 管理</h4>
+        <p>自动扫描本机已装 AI 助手，一键写入 MCP、支持多接入；不支持自动写入的提供分步手动引导。</p>
+      </div>
+      <div class="fitem">
+        <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></div>
+        <h4>品牌中文化</h4>
+        <p>内置 34 个品牌中英文词库，首页显示纯中文简称，通知统一显示「英文（中文简称）」。</p>
+      </div>
+      <div class="fitem">
+        <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M17 7H9.5a2.5 2.5 0 0 0 0 5h5a2.5 2.5 0 0 1 0 5H7"/></svg></div>
+        <h4>邮件到手价</h4>
+        <p>抓取货币、总价与支数，按官方汇率与 50% 税率算好到手总价、单价，超限值与免征均有提示。</p>
+      </div>
+      <div class="fitem">
+        <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18"/></svg></div>
+        <h4>三通道提醒</h4>
+        <p>仅在缺货转有货时触发，HTML 邮件、Windows 系统通知、微信 ClawBot 同时送达，不重复刷屏。</p>
+      </div>
+      <div class="fitem">
+        <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+        <h4>本地优先 · 数据安全</h4>
+        <p>数据存本机 SQLite，缩到托盘持续运行；仓库与安装包不含任何邮箱、授权码或真实监控数据。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 下载 ===== -->
+  <section class="download">
+    <div class="card dl-card">
+      <div>
+        <h3>下载 CigarMonitor v1.3.0</h3>
+        <p>安装版免 UAC、支持就地升级；免安装版解压即用。用户数据独立存放，更新与卸载均不丢失。</p>
+      </div>
+      <div class="dl-btns">
+        <a class="btn btn-primary" href="https://github.com/hoho77777/cigar-monitor/releases/download/v1.3.0/CigarMonitor_v1.3.0_setup.exe">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>
+          下载安装版 <small>setup.exe</small>
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/hoho77777/cigar-monitor/releases/download/v1.3.0/CigarMonitor_v1.3.0_windows.zip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg>
+          下载免安装版 <small>windows.zip</small>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    CigarMonitor · 基于 <a href="https://github.com/hoho77777/cigar-monitor">MIT License</a> 开源 · 数据仅存本机
+  </footer>
+
+</div>
+</body>
+</html>
