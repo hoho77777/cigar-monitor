@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-"""雪茄库存监控：本地 Web 管理 + 后台定时检查 + 邮件 / 系统 / 微信通知。"""
+"""雪茄库存监控：本地 Web 管理 + 后台定时检查 + 邮件通知。"""
 import json
 import os
 import re
 import time
 import threading
+import ctypes
+from ctypes import wintypes
 import webbrowser
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -17,7 +19,8 @@ from config import (WEB_HOST, WEB_PORT, SMTP_PRESETS, RESOURCE_DIR,
                     DB_PATH, SEED_JSON, APP_VERSION, SAME_DOMAIN_GAP,
                     BACKOFF_BASE, BACKOFF_MULTIPLIER, BACKOFF_MAX)
 from monitor import check_product, fetch_page_title
-from notifier import send_email, back_in_stock_html, test_email_html, stock_greeting
+from notifier import (send_email, back_in_stock_html, test_email_html,
+                      stock_greeting, brand_label)
 import tagger
 import brands
 import updater
@@ -43,52 +46,6 @@ update_quit = None
 
 
 # ---------------- 检查与通知核心 ----------------
-def _mail_configured(s):
-    """SMTP 与收件人填齐即视为已启用邮件通知，无需额外开关。"""
-    return all(str(s.get(k) or "").strip()
-               for k in ("smtp_host", "smtp_port", "smtp_user", "smtp_pass", "mail_to"))
-
-
-def dispatch_notifications(product, pid, status, code):
-    """三路通知互不阻塞：系统托盘（常开）/ 邮件 / 微信 ClawBot。
-
-    渠道没有开关：系统托盘始终发；SMTP 填齐就发邮件；微信绑定后就推送。
-    未配置的一路静默跳过，不写失败日志。
-    返回 (任一渠道成功, 各渠道结果)，任一成功即视为已提醒。
-    """
-    settings = db.get_settings()
-    results = []
-
-    # 系统托盘默认常开，不读取开关，避免误关后到货完全无感
-    if system_notify is not None:
-        try:
-            system_notify(f"有货提醒：{product['name']}", "监控的雪茄已到货，点击查看商品页")
-            results.append({"channel": "系统通知", "ok": True, "message": "已弹出"})
-        except Exception as e:
-            results.append({"channel": "系统通知", "ok": False, "message": str(e)})
-
-    # 邮件：填齐 SMTP 即自动启用；未配置时静默跳过
-    if _mail_configured(settings):
-        try:
-            send_email(settings, stock_greeting(product), back_in_stock_html(product))
-            results.append({"channel": "邮件", "ok": True, "message": "已发送"})
-        except Exception as e:
-            results.append({"channel": "邮件", "ok": False, "message": str(e)})
-
-    # 微信：扫码绑定后自动启用；未绑定时静默跳过，避免每次到货都刷日志
-    if clawbot.get_credential(settings).get("bot_token"):
-        try:
-            ok, msg = clawbot.send_stock_alert(product)
-            results.append({"channel": "微信 ClawBot", "ok": ok, "message": msg})
-        except Exception as e:
-            results.append({"channel": "微信 ClawBot", "ok": False, "message": str(e)})
-
-    for r in results:
-        if not r["ok"]:
-            db.add_log(pid, status, code, "%s通知失败: %s" % (r["channel"], r["message"]))
-    return any(r["ok"] for r in results), results
-
-
 def perform_check(pid):
     product = db.get_product(pid)
     if not product:
@@ -96,9 +53,9 @@ def perform_check(pid):
     old_status = product.get("status", "unknown")
 
     try:
-        status, detail, code = check_product(product)
+        status, detail, code, info = check_product(product)
     except Exception as e:
-        status, detail, code = "unknown", f"抓取失败: {e}", None
+        status, detail, code, info = "unknown", f"抓取失败: {e}", None, None
 
     # 本次无法确认真实状态（限流/超时/页面无标记）：保留上次已确认状态，不降级为未知
     if status == "unknown":
@@ -111,7 +68,7 @@ def perform_check(pid):
         db.update_status(pid, "unknown", detail)
         return {"id": pid, "status": "unknown", "detail": detail, "notified": False, "code": code}
 
-    # 是否触发提醒（沿用原有策略：仅缺货转有货，或每次有货）
+    # 是否需要发邮件
     should_notify = False
     if status == "in_stock":
         mode = db.get_settings().get("notify_mode", "change")
@@ -119,15 +76,40 @@ def perform_check(pid):
 
     db.update_status(pid, status, detail)
     db.add_log(pid, status, code, detail)
+    # 保存本次抓取到的价格/货币/支数（供到手价估算）
+    if info:
+        db.update_product_info(pid, info.get("price"),
+                               info.get("currency", ""), info.get("quantity", 1))
 
     result = {"id": pid, "status": status, "detail": detail, "notified": False, "code": code}
     if should_notify:
         fresh = with_tags(db.get_product(pid))
-        any_ok, channels = dispatch_notifications(fresh, pid, status, code)
-        result["channels"] = channels
-        if any_ok:
+        # 右下角系统通知（独立于邮件，失败不影响邮件发送）
+        if system_notify is not None:
+            try:
+                blabel = brand_label(fresh)
+                title = f"{blabel}雪茄有货" if blabel else "雪茄有货提醒"
+                system_notify(title, fresh["name"])
+            except Exception:
+                pass
+        try:
+            send_email(db.get_settings(), stock_greeting(fresh), back_in_stock_html(fresh))
             db.update_status(pid, status, detail, notified=True)
             result["notified"] = True
+        except Exception as e:
+            mail_err = f"邮件发送失败: {e}"
+            db.add_log(pid, status, code, mail_err)
+            result["mail_error"] = str(e)
+        # 微信 ClawBot：扫码绑定后自动推送，未绑定静默跳过
+        if clawbot.get_credential(db.get_settings()).get("bot_token"):
+            try:
+                ok, msg = clawbot.send_stock_alert(fresh)
+                if ok:
+                    result["notified"] = True
+                else:
+                    db.add_log(pid, status, code, f"微信通知失败: {msg}")
+            except Exception as e:
+                db.add_log(pid, status, code, f"微信通知失败: {e}")
     return result
 
 
@@ -177,11 +159,7 @@ def reschedule():
     job = scheduler.get_job(JOB_ID)
     if job:
         job.remove()
-    try:
-        interval = int(db.get_settings().get("check_interval", 300))
-    except (TypeError, ValueError):
-        interval = 300
-    interval = max(30, interval)
+    interval = max(30, int(db.get_settings().get("check_interval", 300)))
     scheduler.add_job(
         run_check_all, "interval", seconds=interval, id=JOB_ID,
         max_instances=1, coalesce=True,
@@ -274,19 +252,6 @@ def products():
     return jsonify([with_tags(p) for p in db.list_products()])
 
 
-# 拦截/限流页的标题特征：抓到这类标题时回退用域名，避免把错误页当商品名
-BAD_TITLE_PATTERNS = (
-    "too many requests", "access denied", "just a moment",
-    "attention required", "cloudflare", "error 429",
-    "403 forbidden", "service unavailable",
-)
-
-
-def _is_bad_title(title):
-    low = str(title or "").strip().lower()
-    return any(p in low for p in BAD_TITLE_PATTERNS)
-
-
 @app.route("/api/products", methods=["POST"])
 def add_product():
     data = request.get_json(force=True)
@@ -299,9 +264,6 @@ def add_product():
 
     if not name:
         name = fetch_page_title(url) or urlparse(url).netloc
-    # 抓到限流/拦截页标题时回退用域名，避免错误标题入库
-    if _is_bad_title(name):
-        name = urlparse(url).netloc
     name = re.sub(r"\s+", " ", name).strip()
     pid = db.create_product(name[:120], url)
     perform_check(pid)        # 添加后立即检查一次
@@ -366,6 +328,283 @@ def test_email():
         return jsonify({"error": str(e)}), 400
 
 
+# ---------------- AI 接入：本机 Host 扫描与配置写入 ----------------
+import shutil
+
+MCP_SERVER_NAME = "cigar-monitor"
+
+
+def _multi_drive_paths(rel):
+    """在各固定盘符与常见程序目录下生成候选路径（覆盖自定义盘安装）。"""
+    out = []
+    for drive in ("C:", "D:", "E:", "F:"):
+        out.append(os.path.join(drive + "\\", rel))
+    pf = os.environ.get("ProgramFiles", "")
+    pf86 = os.environ.get("ProgramFiles(x86)", "")
+    if pf:
+        out.append(os.path.join(pf, rel))
+    if pf86:
+        out.append(os.path.join(pf86, rel))
+    return out
+
+
+def _doubao_marks():
+    la = os.environ.get("LOCALAPPDATA", "")
+    ap = os.environ.get("APPDATA", "")
+    marks = [os.path.join(la, "DoubaoWork"), os.path.join(la, "Doubao"),
+             os.path.join(ap, "Doubao")]
+    marks += _multi_drive_paths(os.path.join("Doubao"))
+    return [p for p in marks if p]
+
+
+def _qianwen_marks():
+    la = os.environ.get("LOCALAPPDATA", "")
+    ap = os.environ.get("APPDATA", "")
+    pf = os.environ.get("ProgramFiles", "")
+    marks = [
+        os.path.join(la, "Qianwen"),
+        os.path.join(pf, "QianwenApp") if pf else "",
+        # 兼容旧版/其他命名
+        os.path.join(la, "QwenWork"),
+        os.path.join(ap, "QwenWork")]
+    marks += _multi_drive_paths("QianwenApp")
+    marks += _multi_drive_paths("Qianwen")
+    return [p for p in marks if p]
+
+
+# id | 名称 | 安装标记路径 | 可自动写入的配置文件（None=暂不支持自动写入）
+AI_HOSTS = [
+    {"id": "claude", "name": "Claude Desktop", "marks": [
+        os.path.join(os.environ.get("APPDATA", ""), "Claude"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Claude")],
+     "config_path": os.path.join(os.environ.get("APPDATA", ""),
+                                "Claude", "claude_desktop_config.json"),
+     "process_name": "Claude.exe"},
+    {"id": "doubao", "name": "豆包", "marks": _doubao_marks(),
+     "config_path": None, "process_name": "Doubao.exe"},
+    {"id": "workbuddy", "name": "WorkBuddy", "marks": [
+        os.path.join(os.path.expanduser("~"), ".workbuddy"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "WorkBuddy"),
+        os.path.join(os.environ.get("APPDATA", ""), "WorkBuddy")],
+     "config_path": os.path.join(os.path.expanduser("~"),
+                                ".workbuddy", "mcp.json"),
+     "process_name": "WorkBuddy.exe"},
+    {"id": "winclaw", "name": "WinClaw", "marks": [
+        os.path.join(os.path.expanduser("~"), ".openclaw")],
+     "config_path": os.path.join(os.path.expanduser("~"),
+                                ".openclaw", "openclaw.json"),
+     "process_name": "WinClaw.exe"},
+    {"id": "qwenwork", "name": "千问",
+     "marks": _qianwen_marks(),
+     "config_path": None, "process_name": "qianwen.exe",
+     "process_names": ["qianwen.exe", "QwenWork.exe", "Qwen.exe"]},
+]
+
+
+def _mcp_entry():
+    # HTTP 模式：指向本服务的 MCP 端点（端点在下一步开发）
+    return {"url": f"http://127.0.0.1:{WEB_PORT}/mcp"}
+
+
+def _is_connected(config_path):
+    if not config_path or not os.path.exists(config_path):
+        return False
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return MCP_SERVER_NAME in data.get("mcpServers", {})
+    except Exception:
+        return False
+
+
+def _write_host_config(config_path, connect):
+    data = {}
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            return False, "配置文件格式异常，已保留未动"
+    data.setdefault("mcpServers", {})
+    if connect:
+        data["mcpServers"][MCP_SERVER_NAME] = _mcp_entry()
+    else:
+        data["mcpServers"].pop(MCP_SERVER_NAME, None)
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    if os.path.exists(config_path):
+        shutil.copy2(config_path, config_path + ".bak")
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return True, ""
+
+
+def _process_path_by_name(process_name):
+    """按进程名（不区分大小写）返回首个匹配进程的完整映像路径，无则 None。
+
+    用 ctypes 调 Toolhelp API，不引入 psutil 等新依赖。
+    """
+    TH32CS_SNAPPROCESS = 0x00000002
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+    class PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+            ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD),
+            ("szExeFile", wintypes.WCHAR * 260)]
+
+    k32 = ctypes.windll.kernel32
+    snap = k32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    if snap == -1:
+        return None
+    entry = PROCESSENTRY32W()
+    entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+    target = process_name.lower()
+    found_pid = None
+    try:
+        ok = k32.Process32FirstW(snap, ctypes.byref(entry))
+        while ok:
+            if entry.szExeFile.lower() == target:
+                found_pid = entry.th32ProcessID
+                break
+            ok = k32.Process32NextW(snap, ctypes.byref(entry))
+    finally:
+        k32.CloseHandle(snap)
+    if not found_pid:
+        return None
+    hproc = k32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, found_pid)
+    if not hproc:
+        return None
+    try:
+        buf = ctypes.create_unicode_buffer(260)
+        size = wintypes.DWORD(260)
+        if k32.QueryFullProcessImageNameW(hproc, 0, buf, ctypes.byref(size)):
+            return buf.value
+    finally:
+        k32.CloseHandle(hproc)
+    return None
+
+
+@app.route("/api/ai/scan")
+def ai_scan():
+    hosts = []
+    for h in AI_HOSTS:
+        found = next((p for p in h["marks"] if p and os.path.exists(p)), "")
+        # 路径标记都没命中时，按运行进程兜底发现（覆盖任意自定义安装路径）
+        # 支持多个进程名候选，兼容不同版本/命名
+        if not found:
+            proc_names = h.get("process_names") or (
+                [h["process_name"]] if h.get("process_name") else [])
+            for pn in proc_names:
+                found = _process_path_by_name(pn) or ""
+                if found:
+                    break
+        hosts.append({"id": h["id"], "name": h["name"],
+                      "installed": bool(found), "path": found,
+                      "auto_writable": bool(h["config_path"]),
+                      "connected": _is_connected(h["config_path"])})
+    return jsonify({"hosts": hosts, "mcp_url": _mcp_entry()["url"],
+                    "scanned_at": datetime.now().strftime("%H:%M:%S")})
+
+
+def _ai_config_action(connect):
+    payload = request.get_json(silent=True) or {}
+    host = next((h for h in AI_HOSTS if h["id"] == payload.get("host")), None)
+    if not host or not any(p and os.path.exists(p) for p in host["marks"]):
+        return jsonify({"error": "Host 不可用"}), 400
+    if not host["config_path"]:
+        return jsonify({"error": "该 Host 暂不支持自动写入，请用手动接入"}), 400
+    ok, err = _write_host_config(host["config_path"], connect)
+    if not ok:
+        return jsonify({"error": err}), 400
+    # 允许多个 AI 同时接入：只写入/移除当前目标，不影响其他 Host
+    return jsonify({"ok": True, "config_path": host["config_path"]})
+
+
+@app.route("/api/ai/connect", methods=["POST"])
+def ai_connect():
+    return _ai_config_action(True)
+
+
+@app.route("/api/ai/disconnect", methods=["POST"])
+def ai_disconnect():
+    return _ai_config_action(False)
+
+
+def _find_host_exe(h):
+    name = h["process_name"]
+    # 1. 从运行中进程取可执行路径
+    ps = ("(Get-Process -Name '%s' -ErrorAction SilentlyContinue | "
+          "Select-Object -First 1).Path" % name)
+    try:
+        import subprocess
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+                             capture_output=True, text=True,
+                             timeout=20).stdout.strip()
+        if out and os.path.exists(out):
+            return out
+    except Exception:
+        pass
+    # 2. 注册表卸载条目 DisplayIcon 兜底
+    try:
+        import winreg
+        roots = [
+            (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall")]
+        for root, sub in roots:
+            try:
+                k = winreg.OpenKey(root, sub)
+            except OSError:
+                continue
+            i = 0
+            while True:
+                try:
+                    sk = winreg.EnumKey(k, i); i += 1
+                except OSError:
+                    break
+                try:
+                    appk = winreg.OpenKey(k, sk)
+                    dn = winreg.QueryValueEx(appk, "DisplayName")[0]
+                    if h["name"].lower() in dn.lower():
+                        icon = winreg.QueryValueEx(appk, "DisplayIcon")[0]
+                        p = icon.split(",")[0].strip().strip('"')
+                        if os.path.exists(p):
+                            return p
+                except OSError:
+                    pass
+    except Exception:
+        pass
+    return None
+
+
+def _restart_host(h):
+    import subprocess
+    exe = _find_host_exe(h)
+    if not exe:
+        return False, "未找到程序路径，请手动重启"
+    subprocess.run(["taskkill", "/IM", h["process_name"], "/F"],
+                   capture_output=True)
+    time.sleep(2)
+    subprocess.Popen([exe], close_fds=True)
+    return True, exe
+
+
+@app.route("/api/ai/restart", methods=["POST"])
+def ai_restart():
+    payload = request.get_json(silent=True) or {}
+    h = next((x for x in AI_HOSTS if x["id"] == payload.get("host")), None)
+    if not h or not h.get("process_name"):
+        return jsonify({"error": "该 Host 暂不支持一键重启"}), 400
+    ok, info = _restart_host(h)
+    if not ok:
+        return jsonify({"error": info}), 400
+    return jsonify({"ok": True, "exe": info})
+
+
 # ---------------- 微信 ClawBot ----------------
 @app.route("/api/clawbot/status")
 def clawbot_status():
@@ -401,8 +640,7 @@ def clawbot_unbind():
 
 @app.route("/api/clawbot/test", methods=["POST"])
 def clawbot_test():
-    # 还没拿到 context_token 时，微信侧不允许 bot 主动下发（会返回 -2 prepare
-    # failed）。此时不再发注定失败的请求，直接给出可执行的下一步。
+    # 还没拿到 context_token 时，微信侧不允许 bot 主动下发，直接给出可执行的下一步
     try:
         ready = clawbot.refresh_tokens_once() > 0
     except Exception:
@@ -543,6 +781,226 @@ def logs():
     limit = min(int(request.args.get("limit", 50)), 200)
     product_id = request.args.get("product_id")
     return jsonify(db.list_logs(limit=limit, product_id=product_id))
+
+
+# ---------------- AI 工具执行器 ----------------
+import tools_def
+
+
+def _find_product_by_url(url):
+    url = (url or "").strip()
+    p = db.get_product_by_url(url)
+    if p:
+        return p
+    for x in db.list_products():
+        if x["url"] == url:
+            return x
+    return None
+
+
+def execute_ai_tool(name, args):
+    if name == "get_app_status":
+        job = scheduler.get_job(JOB_ID)
+        products = db.list_products()
+        return {
+            "running": True, "version": APP_VERSION, "total": len(products),
+            "enabled": sum(1 for p in products if p.get("enabled")),
+            "in_stock": sum(1 for p in products if p.get("status") == "in_stock"),
+            "out_of_stock": sum(1 for p in products if p.get("status") == "out_of_stock"),
+            "next_check": job.next_run_time.strftime("%Y-%m-%d %H:%M:%S")
+            if job and job.next_run_time else None}
+
+    if name == "list_inventory":
+        status = (args.get("status") or "").strip()
+        kw = (args.get("keyword") or "").strip().lower()
+        out = []
+        for p in db.list_products():
+            if status and p.get("status") != status:
+                continue
+            if kw and kw not in p["name"].lower() and kw not in p["url"].lower():
+                continue
+            out.append({"name": p["name"], "url": p["url"],
+                        "status": p.get("status"), "enabled": bool(p.get("enabled"))})
+        return {"count": len(out), "items": out}
+
+    if name == "add_monitor_url":
+        url = (args.get("url") or "").strip()
+        pname = (args.get("name") or "").strip()
+        if not url.startswith(("http://", "https://")):
+            return {"error": "网址无效，需要 http/https 开头"}
+        if db.get_product_by_url(url):
+            return {"error": "该网址已在监控列表", "url": url}
+        if not pname:
+            pname = fetch_page_title(url) or urlparse(url).netloc
+        pid = db.create_product(pname[:120], url)
+        res = perform_check(pid)
+        p = db.get_product(pid)
+        return {"ok": True, "name": p["name"], "url": p["url"],
+                "status": p.get("status"), "detail": (res or {}).get("detail")}
+
+    if name == "run_check":
+        url = (args.get("url") or "").strip()
+        if url:
+            p = _find_product_by_url(url)
+            if not p:
+                return {"error": "找不到该监控项", "url": url}
+            res = perform_check(p["id"]) or {}
+            return {"url": url, "status": res.get("status"), "detail": res.get("detail")}
+        items = []
+        for p in db.list_products():
+            if p.get("enabled"):
+                r = perform_check(p["id"]) or {}
+                items.append({"name": p["name"], "status": r.get("status")})
+        return {"checked": len(items), "items": items}
+
+    if name == "set_enabled":
+        url = (args.get("url") or "").strip()
+        enabled = bool(args.get("enabled"))
+        p = _find_product_by_url(url)
+        if not p:
+            return {"error": "找不到该监控项", "url": url}
+        db.update_product(p["id"], {"enabled": 1 if enabled else 0})
+        return {"ok": True, "name": p["name"], "enabled": enabled}
+
+    if name == "delete_monitor":
+        url = (args.get("url") or "").strip()
+        p = _find_product_by_url(url)
+        if not p:
+            return {"error": "找不到该监控项", "url": url}
+        db.delete_product(p["id"])
+        return {"ok": True, "deleted": p["name"], "url": url}
+
+    if name == "calculate_landed_cost":
+        code = str(args.get("currency", "EUR")).upper()
+        if code not in rates.CURRENCY_CODES:
+            return {"error": "不支持的货币", "supported": rates.CURRENCY_CODES}
+        try:
+            price = float(args.get("price", 0) or 0)
+            count = int(float(args.get("count", 1) or 1))
+            shipping = float(args.get("shipping", 0) or 0)
+        except (TypeError, ValueError):
+            return {"error": "数字无效"}
+        live = rates.get_live_rates()
+        customs = rates.get_customs_rates()
+        lr, cr = live["rates"][code], customs["rates"][code]
+        goods = round(price * lr, 2)
+        ship_cny = round(shipping * lr, 2)
+        pre_tax = round(price * cr * 0.5, 2)
+        exempt = pre_tax <= 50
+        tax_low, tax_high = (0, pre_tax) if exempt else (pre_tax, pre_tax)
+        total_low = round(goods + ship_cny + tax_low, 2)
+        total_high = round(goods + ship_cny + tax_high, 2)
+        return {"currency": code, "goods_cny": goods, "shipping_cny": ship_cny,
+                "tax_rate": "50%", "maybe_exempt": exempt,
+                "tax_low": tax_low, "tax_high": tax_high,
+                "total_low": total_low, "total_high": total_high,
+                "unit_low": round(total_low / count, 2),
+                "unit_high": round(total_high / count, 2),
+                "over_limit": round(price * cr, 2) > 2000}
+
+    if name == "manage_address":
+        action = args.get("action")
+        if action == "get":
+            addr = dict(DEFAULT_ADDRESS)
+            raw = db.get_settings().get("en_address")
+            if raw:
+                try:
+                    addr.update(json.loads(raw))
+                except ValueError:
+                    pass
+            return addr
+        if action == "save":
+            addr = {k: str(args.get(k, "")).strip() for k in DEFAULT_ADDRESS}
+            db.save_settings({"en_address": json.dumps(addr, ensure_ascii=False)})
+            return {"ok": True, "address": addr}
+        return {"error": "action 需为 get 或 save"}
+
+    return {"error": "未知工具 %s" % name}
+
+
+# ---------------- MCP 服务端点（Streamable HTTP，JSON-RPC 2.0） ----------------
+MCP_PROTOCOL_VERSION = "2025-06-18"
+_MCP_KNOWN_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
+
+
+def _mcp_tools():
+    # 工具定义已是 MCP 原生格式，直接返回
+    return tools_def.TOOL_DEFS
+
+
+def _mcp_handle(message):
+    """处理单条 JSON-RPC 消息。返回 (响应dict 或 None, 协商协议版本 或 None)。"""
+    method = message.get("method")
+    msg_id = message.get("id")
+    params = message.get("params") or {}
+
+    # 通知（无 id，如 notifications/initialized）：不回响应
+    if msg_id is None:
+        return None, None
+
+    if method == "initialize":
+        client_ver = params.get("protocolVersion")
+        ver = client_ver if client_ver in _MCP_KNOWN_VERSIONS else MCP_PROTOCOL_VERSION
+        return {"jsonrpc": "2.0", "id": msg_id, "result": {
+            "protocolVersion": ver,
+            "capabilities": {"tools": {"listChanged": False}},
+            "serverInfo": {"name": MCP_SERVER_NAME, "version": APP_VERSION}}}, ver
+
+    if method == "ping":
+        return {"jsonrpc": "2.0", "id": msg_id, "result": {}}, None
+
+    if method == "tools/list":
+        return {"jsonrpc": "2.0", "id": msg_id,
+                "result": {"tools": _mcp_tools()}}, None
+
+    if method == "tools/call":
+        name = params.get("name")
+        args = params.get("arguments") or {}
+        try:
+            result = execute_ai_tool(name, args)
+        except Exception as e:
+            result = {"error": str(e)}
+        is_error = isinstance(result, dict) and "error" in result
+        return {"jsonrpc": "2.0", "id": msg_id, "result": {
+            "content": [{"type": "text",
+                         "text": json.dumps(result, ensure_ascii=False)}],
+            "isError": is_error}}, None
+
+    return {"jsonrpc": "2.0", "id": msg_id,
+            "error": {"code": -32601, "message": "Method not found: %s" % method}}, None
+
+
+@app.route("/mcp", methods=["POST", "GET"])
+def mcp_endpoint():
+    # GET 用于建立 SSE 接收服务器主动推送；本服务无推送，明确拒绝
+    if request.method == "GET":
+        return "", 405
+    data = request.get_json(force=True, silent=True)
+    if data is None:
+        return jsonify({"jsonrpc": "2.0", "id": None,
+                        "error": {"code": -32700, "message": "Parse error"}}), 400
+
+    negotiated = None
+    if isinstance(data, list):
+        responses = []
+        for msg in data:
+            resp, ver = _mcp_handle(msg)
+            if ver:
+                negotiated = ver
+            if resp:
+                responses.append(resp)
+        if not responses:
+            return "", 202          # 批量里全是通知
+        body = jsonify(responses)
+    else:
+        resp, negotiated = _mcp_handle(data)
+        if resp is None:
+            return "", 202          # 单条通知
+        body = jsonify(resp)
+
+    if negotiated:
+        body.headers["MCP-Protocol-Version"] = negotiated
+    return body
 
 
 def main():

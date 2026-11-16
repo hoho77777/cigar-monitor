@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS products (
     last_notified TEXT,
     in_keywords   TEXT DEFAULT '',
     out_keywords  TEXT DEFAULT '',
+    price         REAL,
+    currency      TEXT DEFAULT '',
+    quantity      INTEGER DEFAULT 1,
     created_at    TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -46,6 +49,16 @@ def init_db():
     conn = _conn()
     try:
         conn.executescript(SCHEMA)
+        # 旧库迁移：为已存在的 products 表补齐新增列
+        cols = {r[1] for r in conn.execute(
+            "PRAGMA table_info(products)").fetchall()}
+        for col, ddl in (
+            ("price", "ALTER TABLE products ADD COLUMN price REAL"),
+            ("currency", "ALTER TABLE products ADD COLUMN currency TEXT DEFAULT ''"),
+            ("quantity", "ALTER TABLE products ADD COLUMN quantity INTEGER DEFAULT 1"),
+        ):
+            if col not in cols:
+                conn.execute(ddl)
         conn.commit()
     finally:
         conn.close()
@@ -132,6 +145,18 @@ def update_product(pid, fields: dict):
     conn = _conn()
     try:
         conn.execute(f"UPDATE products SET {', '.join(sets)} WHERE id=?", vals)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def update_product_info(pid, price, currency, quantity):
+    """更新抓取到的价格（总价）/货币/支数。"""
+    conn = _conn()
+    try:
+        conn.execute(
+            "UPDATE products SET price=?, currency=?, quantity=? WHERE id=?",
+            (price, currency, quantity, pid))
         conn.commit()
     finally:
         conn.close()

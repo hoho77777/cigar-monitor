@@ -112,72 +112,16 @@ def fetch(url):
     return _fetch_cloudflare(url)
 
 
-# 标题提取时视为“错误页/非商品名”的标题特征
-_BAD_TITLE_MARKERS = (
-    "too many requests", "access denied", "just a moment",
-    "attention required", "cloudflare", "error 429",
-    "403 forbidden", "service unavailable",
-)
-
-
-def _clean_title(value):
-    return re.sub(r"\s+", " ", str(value or "")).strip()
-
-
-def _ld_name(tag):
-    """读取一个 JSON-LD 标签里的 name 字段（若有）。"""
-    try:
-        data = _loads_lenient(tag.string or "")
-    except Exception:
-        return None
-    if isinstance(data, dict) and data.get("name"):
-        return str(data["name"])
-    return None
-
-
-def _title_is_usable(value, station_words):
-    """标题需非空、不是错误页、也不是站点自身名称，才算可用的商品名。"""
-    low = _clean_title(value).lower()
-    if not low:
-        return False
-    if any(marker in low for marker in _BAD_TITLE_MARKERS):
-        return False
-    if low in station_words:
-        return False
-    return True
-
-
 def fetch_page_title(url):
-    """添加监控项时自动获取商品名称。
-
-    依次尝试 og:title / h1 / JSON-LD 名称 / <title>，自动跳过站名与错误页标题，
-    避免把 “CigarOne”“Too many requests” 这类非商品名当成商品名。
-    """
+    """添加监控项时用于自动获取商品名称。"""
     try:
         text, _ = fetch(url)
         soup = BeautifulSoup(text, "html.parser")
-
-        host = urlparse(url).netloc.lower().replace("www.", "")
-        # 域名主体即站名，如 www.cigarone.com -> cigarone
-        station_words = {host.split(".")[0]} if host else set()
-
-        candidates = []
         og = soup.find("meta", attrs={"property": "og:title"})
         if og and og.get("content"):
-            candidates.append(og["content"])
-        h1 = soup.find("h1")
-        if h1:
-            candidates.append(h1.get_text(" ", strip=True))
-        for tag in soup.find_all("script", type="application/ld+json"):
-            name = _ld_name(tag)
-            if name:
-                candidates.append(name)
-        if soup.title:
-            candidates.append(soup.title.get_text(strip=True))
-
-        for candidate in candidates:
-            if _title_is_usable(candidate, station_words):
-                return _clean_title(candidate)
+            return re.sub(r"\s+", " ", og["content"]).strip()
+        if soup.title and soup.title.get_text(strip=True):
+            return re.sub(r"\s+", " ", soup.title.get_text(strip=True)).strip()
     except Exception:
         pass
     return ""
@@ -233,6 +177,70 @@ def check_jsonld(soup):
         if mapped:
             return mapped
     return None
+
+
+def _walk_for_price(node):
+    """递归遍历 JSON-LD，返回第一个有效 (price, currency)。"""
+    if isinstance(node, dict):
+        raw_price = node.get("price")
+        if raw_price is not None:
+            try:
+                price = float(str(raw_price).replace(",", "").strip())
+                cur = node.get("priceCurrency") or node.get("currency") or ""
+                return price, str(cur).upper()
+            except (ValueError, TypeError):
+                pass
+        for v in node.values():
+            found = _walk_for_price(v)
+            if found:
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = _walk_for_price(item)
+            if found:
+                return found
+    return None
+
+
+def extract_quantity(name):
+    """从商品名称推断一盒支数；无法识别时按单支 1。"""
+    text = (name or "").lower()
+    for pat in (r"box of\s+(\d+)", r"pack of\s+(\d+)", r"(\d+)\s*sticks?",
+                r"(\d+)\s*cigars?", r"(\d+)\s*count"):
+        m = re.search(pat, text)
+        if m:
+            return int(m.group(1))
+    return 1
+
+
+def extract_product_info(soup, name):
+    """提取价格（总价）/货币/支数，供到手价计算。"""
+    price, currency = None, ""
+    # 1. JSON-LD
+    for tag in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = _loads_lenient(tag.string or "")
+        except Exception:
+            continue
+        found = _walk_for_price(data)
+        if found:
+            price, currency = found
+            break
+    # 2. meta 标记兜底
+    if price is None:
+        m = (soup.find("meta", attrs={"itemprop": "price"})
+             or soup.find("meta", attrs={"property": "product:price:amount"}))
+        if m and m.get("content"):
+            try:
+                price = float(m["content"].replace(",", "").strip())
+            except (ValueError, TypeError):
+                pass
+        cm = (soup.find("meta", attrs={"itemprop": "priceCurrency"})
+              or soup.find("meta", attrs={"property": "product:price:currency"}))
+        if cm and cm.get("content"):
+            currency = cm["content"]
+    return {"price": price, "currency": (currency or "").upper(),
+            "quantity": extract_quantity(name)}
 
 
 # ---------------- 站点适配器 ----------------
@@ -360,7 +368,7 @@ def pick_adapter(product):
 
 
 def check_product(product):
-    """返回 (status, detail, http_code)；status: in_stock/out_of_stock/unknown。"""
+    """返回 (status, detail, http_code, info)；status: in_stock/out_of_stock/unknown。"""
     text, code = fetch(product["url"])
     soup = BeautifulSoup(text, "html.parser")
     adapter = pick_adapter(product)
@@ -381,4 +389,5 @@ def check_product(product):
     else:
         status, detail = _check_generic(soup, product)
 
-    return status or "unknown", detail, code
+    info = extract_product_info(soup, product.get("name", ""))
+    return status or "unknown", detail, code, info

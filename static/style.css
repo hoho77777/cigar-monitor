@@ -58,11 +58,12 @@ body {
 }
 .update-mini:hover { background: #e7e7eb; color: var(--text); }
 .update-mini:active { transform: scale(.96); }
-.overview { display: flex; gap: 10px; flex-wrap: wrap; }
+.overview { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
 .stat {
   min-width: 76px; text-align: center; padding: 10px 16px;
   background: var(--card); border: 1px solid var(--separator);
   border-radius: 14px; box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column; justify-content: center; gap: 4px;
 }
 .stat b { display: block; font-size: 20px; color: var(--text); font-weight: 700; letter-spacing: -0.02em; }
 .stat span { color: var(--muted); font-size: 12px; }
@@ -617,3 +618,85 @@ td a:hover { text-decoration: underline; }
   font-size: 11px; color: var(--muted); border: 1px solid var(--card-border);
   border-radius: 980px; padding: 2px 9px; background: var(--soft);
 }
+
+/* ============ AI 接入管理 ============ */
+.stat-ai { cursor: pointer; user-select: none; transition: background .15s, transform .1s, box-shadow .15s; }
+.stat-ai:hover { background: #f2f2f5; }
+.stat-ai:active { transform: scale(.97); }
+.stat-ai:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.ai-icon { display: flex; align-items: center; justify-content: center; line-height: 1; }
+.ai-icon svg { width: 24px; height: 24px; display: block; margin: 0 auto; }
+
+.ai-modal { max-width: 620px; }
+.ai-section { padding: 14px 0; }
+.ai-section + .ai-section { border-top: 1px solid var(--separator); }
+.ai-sec-title { margin: 0 0 12px; font-size: 13px; font-weight: 700; color: var(--text); }
+.ai-sec-title span { color: var(--muted); font-weight: 500; margin-left: 8px; font-size: 12px; }
+.ai-modal .modal-body label { margin-bottom: 14px; color: var(--text); font-weight: 600; }
+.ai-modal .input { width: 100%; font-weight: 400; }
+
+/* AI 能力清单 */
+.ai-tool-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+.ai-tool-list li { background: var(--soft); border: 1px solid var(--separator); border-radius: 10px; padding: 9px 12px; display: flex; flex-direction: column; gap: 3px; }
+.ai-tool-list b { font-size: 12.5px; font-weight: 600; }
+.ai-tool-list span { color: var(--muted); font-size: 11px; line-height: 1.4; }
+
+/* Host 列表 */
+.ai-host-list { margin-top: 12px; display: flex; flex-direction: column; }
+.ai-host { display: flex; align-items: center; justify-content: space-between; padding: 10px 2px; border-bottom: 1px solid var(--separator); font-size: 13px; }
+.ai-host:last-child { border-bottom: none; }
+.ai-badge { font-style: normal; font-size: 11px; color: var(--muted); background: #efeff1; border-radius: 980px; padding: 3px 10px; }
+
+@media (max-width: 560px) {
+  .ai-tool-list { grid-template-columns: 1fr; }
+}
+
+/* 弹窗底部按钮居中 */
+.ai-modal .modal-foot { justify-content: center; }
+.ai-modal .modal-foot .btn { min-width: 110px; }
+
+/* 扫描状态 */
+.ai-scan-tip { margin: 6px 0 10px; color: var(--muted); font-size: 12px; }
+.ai-scan-tip.err { color: var(--danger); }
+.ai-badge.ok { color: #1f7a3d; background: #e4f4e8; }
+.ai-badge.warn { color: #9a6a00; background: #f6eccf; }
+.ai-rescan { margin-top: 12px; font-size: 12px; padding: 7px 16px; }
+
+/* Host 行右侧操作 */
+.ai-host-right { display: flex; align-items: center; gap: 10px; }
+.ai-host-btn {
+  border: 1px solid var(--text); background: var(--text); color: #fff;
+  font-size: 11px; border-radius: 980px; padding: 4px 14px; cursor: pointer;
+  transition: opacity .15s;
+}
+.ai-host-btn:hover { opacity: .85; }
+.ai-host-btn.ghost { background: transparent; color: var(--text); }
+.ai-host-btn:disabled { opacity: .5; cursor: default; }
+
+/* 手动接入引导高亮 */
+.ai-section.highlight { border-radius: 12px; animation: aiPulse 2s ease; }
+@keyframes aiPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+  30% { box-shadow: 0 0 0 3px rgba(0,0,0,.18); }
+}
+
+/* 手动接入：已安装但暂不支持自动写入的本机助手 */
+.ai-manual-hosts { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+.ai-manual-hosts:empty { display: none; }
+.manual-host { border: 1px solid var(--separator); border-radius: 12px; padding: 12px; }
+.manual-host.highlight { animation: aiPulse 2s ease; }
+.manual-host-name { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; gap: 8px; }
+.manual-host-name em { font-style: normal; font-size: 11px; font-weight: 500;
+  color: #9a6a00; background: #f6eccf; border-radius: 980px; padding: 2px 9px; }
+.manual-prompt { width: 100%; box-sizing: border-box; resize: vertical;
+  font-family: inherit; font-size: 12px; line-height: 1.6; color: var(--text);
+  background: #f7f7f9; border: 1px solid var(--separator); border-radius: 10px;
+  padding: 10px; margin-bottom: 10px; }
+.manual-prompt:focus { outline: none; }
+.manual-note { margin: 10px 0 0; font-size: 11px; line-height: 1.6;
+  color: var(--text-soft, #8a8a8e); }
+.manual-btn-row { display: flex; justify-content: flex-start; gap: 10px; margin-top: 4px; }
+.manual-btn-row .btn { flex: 0 0 auto; padding: 4px 14px; font-size: 11px; }
+.manual-host-name em.stage-ok { color: #1c7c4d; background: #e8f5ee;
+  border-color: #bfe3d1; }

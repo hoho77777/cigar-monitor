@@ -1,9 +1,10 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="CigarMonitor：本地雪茄库存监控工具，缺货转有货立即邮件、系统通知与微信提醒">
+  <img src="./assets/readme/hero.svg" width="100%" alt="CigarMonitor：本地雪茄库存监控 + 标准 MCP server，缺货转有货立即邮件、系统通知与微信提醒">
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.1-2563EB" alt="version 1.2.1">
+  <img src="https://img.shields.io/badge/version-1.3.0-2563EB" alt="version 1.3.0">
+  <img src="https://img.shields.io/badge/MCP-server-7C3AED" alt="standard MCP server">
   <img src="https://img.shields.io/badge/python-3.x-3776AB" alt="python">
   <img src="https://img.shields.io/badge/license-MIT-10B981" alt="license MIT">
   <img src="https://img.shields.io/badge/platform-Windows-0078D4" alt="platform windows">
@@ -11,7 +12,9 @@
 
 ## 这是什么
 
-CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页网址丢进去，它会在后台定时检查库存，一旦从「缺货」变成「有货」，立即发邮件、弹出 Windows 系统通知，并推送到你的微信。全部数据保存在自己电脑上，无需公网服务器，也不向第三方上传数据。
+CigarMonitor 是一个**本地部署的雪茄库存监控工具，同时是一个标准 MCP server**：把商品页网址丢进去，它会在后台定时检查库存，一旦从「缺货」变成「有货」，立即通过邮件、Windows 系统通知、微信三通道提醒，并在邮件里直接算好人民币到手总价与单支价。
+
+软件本身**不内置、不打包任何大模型**，而是通过标准 MCP（Model Context Protocol）端点把全部能力开放给本机已安装的 AI 助手——你可以让 Claude、豆包、WorkBuddy、千问等用语音或文字直接查询库存、添加监控、计算到手价。全部数据保存在自己电脑上，无需公网服务器，也不向第三方上传数据。
 
 提供桌面应用（推荐）与浏览器版两种使用方式。
 
@@ -20,13 +23,13 @@ CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页
 <table>
   <tr>
     <td width="33%">
-      <img src="./assets/readme/shot-main.png" width="100%" alt="主界面与监控列表，缺货状态一目了然">
+      <img src="./assets/readme/shot-main.png" width="100%" alt="主界面与监控列表，顶部「接入AI」卡片，有货缺货状态一目了然">
     </td>
     <td width="33%">
-      <img src="./assets/readme/shot-search.png" width="100%" alt="中文搜索与品牌标签，搜威古洛即可找到对应商品">
+      <img src="./assets/readme/shot-search.png" width="100%" alt="输入中文「高希霸」即可搜索，品牌中英文都能命中">
     </td>
     <td width="33%">
-      <img src="./assets/readme/shot-filter.png" width="100%" alt="品牌标签在英文后标注中文，支持按品牌与有货筛选">
+      <img src="./assets/readme/shot-filter.png" width="100%" alt="按品牌筛选，标签显示英文与中文简称，支持只显示有货">
     </td>
   </tr>
   <tr>
@@ -38,48 +41,49 @@ CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页
 
 <details>
 <summary>查看「监控总览」大图</summary>
-<img src="./assets/readme/shot-main.png" alt="主界面与监控列表，缺货状态一目了然">
+<img src="./assets/readme/shot-main.png" alt="主界面与监控列表，顶部「接入AI」卡片，有货缺货状态一目了然">
 </details>
 
 <details>
 <summary>查看「中文搜索」大图</summary>
-<img src="./assets/readme/shot-search.png" alt="中文搜索与品牌标签，搜威古洛即可找到对应商品">
+<img src="./assets/readme/shot-search.png" alt="输入中文「高希霸」即可搜索，品牌中英文都能命中">
 </details>
 
 <details>
 <summary>查看「品牌筛选」大图</summary>
-<img src="./assets/readme/shot-filter.png" alt="品牌标签在英文后标注中文，支持按品牌与有货筛选">
+<img src="./assets/readme/shot-filter.png" alt="按品牌筛选，标签显示英文与中文简称，支持只显示有货">
 </details>
 
 ## 功能特性
 
-- **定时巡检**：添加网址即自动识别商品名并完成首次检查，默认每 5 分钟轮询（界面可调，最小 30 秒）
-- **智能商品名识别**：按 og:title / 页面主标题（h1）/ JSON-LD / 标题标签顺序自动取名，自动跳过站点名与「Too many requests」等错误页标题，识别不到才回退用域名，不会把站名当成商品名
-- **有货提醒**：仅在「缺货 → 有货」时触发，系统托盘 / 邮件 / 微信三路同时发送，互不阻塞，任一成功即算已提醒，不重复刷屏；**没有开关**，配置完即自动生效
-- **微信通知（免费）**：内置微信官方 ClawBot 通道，扫一次码即可用。不注册第三方推送平台、不填 API Key、不新增 Python 依赖、全程 0 元
-- **中文搜索**：内置 34 个雪茄品牌的中英文词库，简称、全称都认；品牌标签在英文后标注中文
-- **到手计算器**：支持 8 种货币，海关计征汇率取中国货币网官方中间价（每月更新）、实时市场汇率自动获取并本地缓存；按 50% 烟草综合税率计算到手总价与单支，自动判断免征区间，计税价超 2000 元提示寄递限值/退运风险，断网可回退缓存
+- **标准 MCP server**：内置 `/mcp` 端点，开放 8 个工具——软件状态、库存查询、添加监控、立即检查、启用/停用、删除监控、到手价计算、收货地址管理；不绑定任何厂商，任意支持 MCP 的 AI 都能接入
+- **「接入 AI」管理**：弹窗自动扫描本机已安装的 AI 助手（进程发现 + 多路径探测），支持一键写入 MCP 配置，可同时接入多个；不支持自动写入的助手提供分步手动接入引导与可复制提示词
+- **定时巡检**：添加网址即自动识别商品名并完成首次检查，默认每 5 分钟轮询（界面可调，最小 30 秒）；站点级 429 自动按 5→10→20 分钟退避
+- **三通道有货提醒**：仅在「缺货 → 有货」时触发，不重复刷屏——HTML 邮件、Windows 系统通知、微信 ClawBot 同时送达
+- **品牌中文化**：内置 34 个雪茄品牌的中英文词库，简称、全称都认；软件首页单款有货显示纯中文简称，邮件/系统通知/微信统一显示「英文（中文简称）」，无中文译名则只显示英文
+- **邮件到手价**：自动抓取商品货币、总价与一盒支数，按到手计算器同款公式给出商品原价、人民币货值、预估税费、**到手总价、到手单价**；计税价超 ¥2,000 提示寄递限值/退运风险，税额 ≤¥50 提示可能免征
+- **到手计算器**：支持 8 种货币，海关计征汇率取中国货币网官方中间价（每月更新）、实时市场汇率自动获取并本地缓存，按 50% 烟草综合税率计算，断网可回退缓存
 - **本地优先**：数据存本机 SQLite，关闭窗口即缩到托盘继续运行，不依赖公网服务器
-- **自动更新**：后台静默检测新版本，一键下载整包并镜像替换、自动重启；用户数据独立存放，更新不丢失
+- **自动更新**：后台检测新版本，一键下载整包并镜像替换、自动重启；用户数据独立存放，更新不丢失
 - **多邮箱预设**：QQ、163、126、Gmail、Outlook，另支持自定义 SMTP
 
 ## 工作原理
 
 <p align="center">
-  <img src="./assets/readme/workflow.svg" width="100%" alt="工作流程：粘贴网址、定时巡检、解析状态、立即通知">
+  <img src="./assets/readme/workflow.svg" width="100%" alt="工作流程：粘贴网址、定时巡检、解析状态、三通道通知">
 </p>
 
-未知站点会先读取页面结构化库存数据（JSON-LD），再用多语言关键词（in stock / add to cart / ausverkauft / rupture de stock 等）兜底判断。
+未知站点会先读取页面结构化数据（JSON-LD），再用多语言关键词（in stock / add to cart / ausverkauft / rupture de stock 等）兜底判断；带 Cloudflare 防护的站点自动切换浏览器指纹抓取。价格同样优先读取 JSON-LD，再以 `meta itemprop` 标记兜底，支数从商品名（box of N / pack of N / N sticks）识别。
 
 ## 快速开始
 
 ### 桌面版（推荐）
 
-1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases) 下载安装包 `CigarMonitor_v1.2.1_setup.exe` 双击安装（自动建桌面快捷方式）；也可下载免安装的 `CigarMonitor_v1.2.1_windows.zip` 解压使用，整包包含 `CigarMonitor.exe` 与 `_internal`，两者必须放在一起，不要只移动 exe
+1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases) 下载安装包 `CigarMonitor_v1.3.0_setup.exe` 双击安装；也可下载免安装的 `CigarMonitor_v1.3.0_windows.zip` 解压使用，整包包含 `CigarMonitor.exe` 与 `_internal`，两者必须放在一起，不要只移动 exe
 2. 双击 `CigarMonitor.exe`，稍候弹出原生窗口
-3. （可选）在「微信通知 · ClawBot」点「扫码绑定微信」，手机微信扫一次即可，无需任何账号或 API Key
-4. 在「发信邮箱与监控设置」填入邮箱账号和 **SMTP 授权码**，保存后可点「发送测试邮件」；只想要微信通知可跳过
-5. 顶部粘贴商品网址即可添加监控，列表默认空，由你自行添加
+3. 在「发信邮箱与监控设置」填入邮箱账号和 **SMTP 授权码**，保存后可点「发送测试邮件」；如需微信推送，在下方扫码绑定 ClawBot
+4. 顶部粘贴商品网址即可添加监控，列表默认空，由你自行添加
+5. 点「接入 AI」卡片，可让本机 AI 助手一键接入并通过 MCP 操作本软件
 
 **系统托盘行为**：点关闭按钮（×）不会退出，窗口隐藏并转入后台继续监控；点击托盘图标恢复窗口，右键可选择「显示主窗口」或「退出」，只有托盘菜单的「退出」才会真正结束程序。
 
@@ -98,78 +102,29 @@ CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页
 - **Gmail**：开启两步验证后使用「应用专用密码」
 - 选择对应预设后，SMTP 主机、端口、加密方式会自动填充，一般无需手动修改
 
-## 微信通知（ClawBot）
-
-完全免费，走微信官方 ClawBot 通道（iLink 协议）直连，**不经过任何第三方推送平台**。
-
-### 配置步骤
-
-1. 手机微信升级到最新版，进入「我 → 设置 → 插件」启用 **ClawBot**（灰度中，若没有入口说明暂未放量）
-2. 软件里展开「发信邮箱与监控设置」卡片（顶部铃铛图标可直接跳转），在下方「微信通知 · ClawBot」区块点「扫码绑定微信」
-3. 用手机微信扫描界面上的二维码并确认；若手机提示配对数字，填进界面上的输入框
-4. 状态变为「已绑定」后，**在微信里给 ClawBot 发任意一条消息**——这是必须的一步，iLink 要求 bot 先拿到来自你的会话上下文才能主动下发
-5. 界面会自动变为「通道就绪」，此时点「发送测试微信」验证
-
-绑定后，每次「缺货 → 有货」都会把商品名、状态、检查时间和可点击的商品链接推到微信 ClawBot 对话。
-
-### 免费与依赖
-
-| 项目 | 说明 |
-|---|---|
-| 费用 | 0 元，无订阅、无条数计费 |
-| 第三方平台 | 不用注册 Server酱 / PushPlus / 企业微信，不用申请 API Key |
-| 服务器 | 无需公网 IP、内网穿透或云服务器 |
-| 依赖 | 复用已有 `requests`，未新增 pip 包；二维码由随包本地 JS 生成，离线可用 |
-
-### 重要限制
-
-- ClawBot 本质是「你与自己的机器人对话」通道，**不是通知推送 API**：bot 主动下发受微信侧 **24 小时 / 最多 10 条**窗口限制，且需要你在此期间给 bot 发过消息。
-- 程序会在后台持续维护会话；长时间不互动时，在微信里给 ClawBot 发任意一条消息即可恢复。
-- 窗口过期时微信这条会失败并在「检查日志」里单独记录，**邮件与系统通知不受影响**（三路独立派发，任一成功即算已提醒）。
-- iLink 为微信非公开接口且仍在灰度，微信侧策略调整可能影响可用性。
-
-> 通知渠道**没有开关**，配置即启用：系统托盘常开；SMTP 主机/账号/授权码/收件人填齐后自动发邮件；扫码绑定微信后自动推送。未配置的一路静默跳过，不产生失败日志。邮件与微信的配置都在「发信邮箱与监控设置」这一张卡片内完成。
-
-## 支持站点与判断逻辑
-
-| 站点 | 判断方式 |
-|---|---|
-| cigars-of-cuba.com | 页面 `stock-availability` 区块：Out of Stock / In Stock |
-| cigarone.com | 加购按钮是否禁用（disabled = 缺货） |
-| c-cigars.de | 结构化数据 schema.org/SoldOut 与 InStock |
-| alpscigar.com | 模拟浏览器指纹绕过 Cloudflare，读取 WooCommerce 库存与结构化数据 |
-
-其他网站直接粘贴网址即可，工具会自动按结构化数据 + 多语言关键词判断。
-
 ## 从源码构建
 
 仓库不包含二进制文件（图标、exe、数据库均通过 `.gitignore` 排除）。
 
 1. 安装依赖：`pip install -r requirements.txt`
-2. 准备图标：把源图 `icon-source.png` 放到 `assets/` 目录，然后执行 `python make_icons.py` 生成全套 ico / png
-3. 打包：直接运行 `build.bat`（缺 `assets/cigar.ico` 时会先自动执行上一步，缺源图则**停止构建**并提示）
+2. 生成图标：`python make_icons.py`（有源图则从源图生成，无源图自动绘制「深色圆角底 + 金雪茄」默认图标）
+3. 打包：直接运行 `build.bat`（缺图标时会先自动执行上一步），产物在 `dist\CigarMonitor\`
 
-> 图标源图不随仓库分发。没有源图时 `make_icons.py` 会报错退出，避免悄悄套用占位图标；若你只想要一个能跑通构建的占位图标，先设置环境变量 `CIGAR_ALLOW_DEFAULT_ICON=1` 再执行。占位图标与官方图标外观不同，不要用于正式发布。
-
-首次启动默认不预置任何监控项；如需预置，可在 `seed/products.json` 中加入条目。
+首次启动默认不预置任何监控项；如需预置，可在 `seed/products.json` 中加入条目（仓库内置为空列表）。
 
 **开机自启**：按 `Win + R` 输入 `shell:startup`，把 `CigarMonitor.exe` 的快捷方式拖入启动文件夹即可后台静默运行。
 
 ## 数据与安全
 
-- 浏览器版数据存于 `data/monitor.db`；桌面版存于 `%LOCALAPPDATA%\CigarMonitor\data\monitor.db`
-- 邮箱授权码仅保存在本机，不上传任何第三方
-- ClawBot 的 bot_token 与会话 token 只存本机 SQLite 的 settings 表，不写日志、不上传；点「解绑」即清除
-- 公开仓库只含源码与纯文本种子，不含邮箱、授权码、地址、数据库、图标、exe 等个人数据或二进制资产
+- 浏览器版数据存于 `data\monitor.db`；桌面版存于 `%LOCALAPPDATA%\CigarMonitor\data\monitor.db`
+- 邮箱授权码、ClawBot 凭证、收货地址仅保存在本机，不上传任何第三方
+- 公开仓库只含源码、纯文本种子与合成演示截图，**不含任何邮箱、授权码、地址、真实监控数据、数据库、图标或 exe**；数据目录与构建产物已在 `.gitignore` 中全部排除
 - 监控请求模拟普通浏览器访问，请合理设置检查频率，避免对目标站点造成压力
 
 ## 常见问题
 
 - **测试邮件发不出去**：确认授权码正确、SMTP 服务已开启，主机/端口/加密保持对应预设
-- **刚绑定点测试就报 `[-2] prepare failed`**：不是绑定失败，也不是窗口过期，而是微信侧还没有你的消息、会话未激活。去微信里给 ClawBot 发任意一条消息，等界面显示「通道就绪」再测；新版会直接给出这一步提示，不再抛技术错误码
-- **微信收不到提醒**：无需任何开关，确认状态为「通道就绪」；长时间未互动导致窗口过期时，在微信里再发一条消息即可恢复，界面状态会自动刷新
-- **扫码时一直等待 / 提示配对码**：手机微信需为最新版并启用 ClawBot 插件；提示配对数字时填进界面输入框再提交；二维码 5 分钟有效，过期请重新扫码
-- **找不到 ClawBot 插件入口**：功能仍在灰度放量，可先用邮件 + 系统通知，等入口出现后再扫码绑定
+- **AI 助手扫描不出来**：弹窗会自动重新扫描进程与常见安装路径；确认助手已安装，仍不显示可使用下方手动接入，不影响使用
 - **商品显示「未知」**：多为网络或反爬拦截，日志里有原因；Cloudflare 站点会自动重试，仍失败可降低检查频率
 - **端口被占用**：桌面版会从 5050 起自动寻找可用端口，无需手动处理
 - **自动更新**：仅在桌面打包版生效，整包镜像替换安装目录；数据库与设置位于 `%LOCALAPPDATA%` 独立目录，不会被改动，失败时静默跳过

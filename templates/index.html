@@ -18,7 +18,10 @@
       </div>
     </div>
     <div class="overview" id="overview">
-      <div class="stat"><b id="st-total">-</b><span>监控项</span></div>
+      <div class="stat stat-ai" id="btn-ai-manage" role="button" tabindex="0" title="接入 AI">
+        <b class="ai-icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="9" y="18" width="30" height="24" rx="2" fill="#333" stroke="#333" stroke-width="4"/><circle cx="17" cy="26" r="2" fill="#FFF"/><circle cx="31" cy="26" r="2" fill="#FFF"/><path d="M20 32C18.8954 32 18 32.8954 18 34C18 35.1046 18.8954 36 20 36V32ZM28 36C29.1046 36 30 35.1046 30 34C30 32.8954 29.1046 32 28 32V36ZM20 36H28V32H20V36Z" fill="#FFF"/><path d="M24 10V18" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 26V34" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M44 26V34" stroke="#333" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="8" r="2" stroke="#333" stroke-width="4"/></svg></b>
+        <span>接入AI</span>
+      </div>
       <div class="stat"><b id="st-enabled" class="gold">-</b><span>启用中</span></div>
       <div class="stat"><b id="st-in" class="green">-</b><span>有货</span></div>
       <div class="stat"><b id="st-out" class="red">-</b><span>缺货</span></div>
@@ -316,6 +319,51 @@
             <div class="calc-empty">填写左侧金额，自动估算到手价</div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI 接入弹窗 -->
+  <div class="modal-mask" id="ai-modal" aria-hidden="true">
+    <div class="modal ai-modal" role="dialog" aria-modal="true" aria-labelledby="ai-modal-title">
+      <div class="modal-head">
+        <h3 id="ai-modal-title">接入到AI里使用 <span class="modal-sub">MCP</span></h3>
+        <button class="modal-close" id="ai-modal-close" aria-label="关闭">×</button>
+      </div>
+      <div class="modal-body">
+        <!-- AI 可用能力 -->
+        <div class="ai-section">
+          <p class="ai-sec-title">AI 可用能力 <span>接入后可语音/文字操作</span></p>
+          <ul class="ai-tool-list">
+            <li><b>添加监控网址</b><span>提交商品页链接并立即检查</span></li>
+            <li><b>监控与库存查询</b><span>按状态/品牌查看监控列表</span></li>
+            <li><b>立即检查</b><span>单项或全部立即刷新库存</span></li>
+            <li><b>启用 / 停用</b><span>切换监控项运行状态</span></li>
+            <li><b>雪茄到手计算</b><span>按汇率税费估算单支到手价</span></li>
+            <li><b>英文地址管理</b><span>读取与保存收货地址</span></li>
+            <li><b>软件运行状态</b><span>查询服务与下次检查时间</span></li>
+          </ul>
+        </div>
+
+        <!-- 自动接入 -->
+        <div class="ai-section">
+          <p class="ai-sec-title">自动接入 <span>本机 AI 助手扫描</span></p>
+          <p class="hint">仅显示本机已安装的 AI 助手，支持一键写入 MCP 配置。</p>
+          <div class="ai-host-list" id="ai-host-list">
+            <p class="ai-scan-tip">正在扫描本机 AI 助手…</p>
+          </div>
+          <button class="btn ghost ai-rescan" id="ai-rescan">重新扫描</button>
+        </div>
+
+        <!-- 手动接入 -->
+        <div class="ai-section" id="ai-manual-section">
+          <p class="ai-sec-title">手动接入 <span>标准 MCP 配置</span></p>
+          <!-- 已安装但暂不支持自动写入的本机助手，逐个给可复制提示词 -->
+          <div id="ai-manual-hosts" class="ai-manual-hosts"></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" id="ai-cancel">关闭</button>
       </div>
     </div>
   </div>

@@ -177,7 +177,8 @@ function setGreeting() {
     g = night ? "夜深了，早点休息~ 目前雪茄均没货"
               : `${word}，目前雪茄均没货`;
   } else if (inStock.length === 1) {
-    const brand = inStock[0].tag_buckets?.brand?.[0];
+    const brandEn = inStock[0].tag_buckets?.brand?.[0];
+    const brand = (brandEn && brandMap[brandEn]?.short) || brandEn;
     if (night) {
       g = brand ? `夜深了，${brand}雪茄有货，抢完再睡！`
                 : "夜深了，有一款雪茄有货，抢完再睡！";
@@ -197,7 +198,7 @@ function setGreeting() {
 async function loadOverview() {
   try {
     const o = await api("/api/overview");
-    $("st-total").textContent = o.total;
+    if ($("st-total")) $("st-total").textContent = o.total;
     $("st-enabled").textContent = o.enabled;
     $("st-in").textContent = o.in_stock;
     $("st-out").textContent = o.out_of_stock;
@@ -759,6 +760,337 @@ $("btn-check-update").addEventListener("click", async () => {
   }
   btn.disabled = false;
   btn.textContent = oldText;
+});
+
+/* ---------------- AI 接入弹窗 ---------------- */
+// 手动接入的阶段由用户在本软件自确认（后端读不到这类 Host 的配置），持久化到 localStorage。
+// 阶段：""(未接入) | "connecting"(接入中) | "connected"(已接入) | "disconnecting"(取消中)
+const MANUAL_FLOW_KEY = "cigar_manual_flow";
+const MANUAL_LEGACY_KEY = "cigar_manual_connected";
+
+function getManualFlow() {
+  try {
+    const v = JSON.parse(localStorage.getItem(MANUAL_FLOW_KEY) || "{}");
+    if (v && typeof v === "object" && !Array.isArray(v)) return v;
+  } catch (e) { /* ignore */ }
+  return {};
+}
+function getManualStage(hostId) {
+  return getManualFlow()[hostId] || "";
+}
+function setManualStage(hostId, stage) {
+  const flow = getManualFlow();
+  if (stage) flow[hostId] = stage; else delete flow[hostId];
+  localStorage.setItem(MANUAL_FLOW_KEY, JSON.stringify(flow));
+}
+// 一次性迁移旧版「已接入 id 数组」
+(function migrateLegacyManual() {
+  try {
+    const old = JSON.parse(localStorage.getItem(MANUAL_LEGACY_KEY) || "[]");
+    if (Array.isArray(old) && old.length) {
+      const flow = getManualFlow();
+      old.forEach((id) => { if (!flow[id]) flow[id] = "connected"; });
+      localStorage.setItem(MANUAL_FLOW_KEY, JSON.stringify(flow));
+    }
+    localStorage.removeItem(MANUAL_LEGACY_KEY);
+  } catch (e) { /* ignore */ }
+})();
+
+function openAiModal() {
+  scanAiHosts();
+  const m = $("ai-modal");
+  m.classList.add("show");
+  m.setAttribute("aria-hidden", "false");
+}
+function closeAiModal() {
+  const m = $("ai-modal");
+  m.classList.remove("show");
+  m.setAttribute("aria-hidden", "true");
+}
+
+function focusManualCard(hostId) {
+  const card = document.getElementById("manual-host-" + hostId);
+  if (!card) return;
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  card.classList.add("highlight");
+  setTimeout(() => card.classList.remove("highlight"), 2000);
+}
+
+let MCP_URL = "";
+
+function buildManualPrompt(hostName) {
+  return (
+    "请帮我接入一个本地 MCP 服务，让你能操作我的「雪茄库存监控」软件。\n" +
+    "服务名称：cigar-monitor\n" +
+    "连接方式：HTTP（Streamable HTTP，本地服务，不是本地进程）\n" +
+    "服务地址：" + MCP_URL + "\n" +
+    "请告诉我在「" + hostName + "」里的具体添加路径；如果你能直接操作电脑，" +
+    "请按上面的地址添加并启用，然后告诉我是否连接成功。"
+  );
+}
+
+function buildCancelPrompt(hostName) {
+  return (
+    "请帮我在「" + hostName + "」里取消一个本地 MCP 服务。\n"
+    + "服务名称：cigar-monitor\n"
+    + "请在 MCP 连接器管理中找到「cigar-monitor」，删除或停用它，"
+    + "然后告诉我是否已取消。"
+  );
+}
+
+function renderManualHosts(hosts) {
+  const box = $("ai-manual-hosts");
+  const manual = hosts.filter((h) => h.installed && !h.auto_writable);
+  if (!manual.length) { box.innerHTML = ""; return; }
+  box.innerHTML = "";
+  manual.forEach((h) => {
+    const stage = getManualStage(h.id);
+    const card = document.createElement("div");
+    card.className = "manual-host";
+    card.id = "manual-host-" + h.id;
+
+    const title = document.createElement("p");
+    title.className = "manual-host-name";
+    title.textContent = h.name;
+    const badge = document.createElement("em");
+    badge.textContent = {
+      connecting: "接入中", connected: "已手动接入", disconnecting: "取消中",
+    }[stage] || "需手动接入";
+    if (stage === "connected") badge.className = "stage-ok";
+    title.appendChild(badge);
+    card.appendChild(title);
+
+    // 已接入：折叠提示词，只给简洁状态
+    if (stage === "connected") {
+      const done = document.createElement("p");
+      done.className = "manual-note";
+      done.textContent = "已在「" + h.name + "」接入。如需取消，请点上方「取消」。";
+      card.appendChild(done);
+      box.appendChild(card);
+      return;
+    }
+
+    const isCancel = stage === "disconnecting";
+    const ta = document.createElement("textarea");
+    ta.className = "manual-prompt";
+    ta.readOnly = true;
+    ta.rows = 6;
+    ta.value = isCancel ? buildCancelPrompt(h.name) : buildManualPrompt(h.name);
+    card.appendChild(ta);
+
+    const btnRow = document.createElement("div");
+    btnRow.className = "manual-btn-row";
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "btn ghost copy-prompt";
+    copyBtn.textContent = "复制提示词";
+    copyBtn.dataset.target = h.id;
+    const confirmBtn = document.createElement("button");
+    confirmBtn.className = "btn primary manual-confirm";
+    confirmBtn.dataset.target = h.id;
+    confirmBtn.textContent = isCancel ? "我已取消" : "已手动接入";
+    confirmBtn.dataset.stage = isCancel ? "done-cancel" : "done-connect";
+    btnRow.appendChild(copyBtn);
+    btnRow.appendChild(confirmBtn);
+    card.appendChild(btnRow);
+
+    const note = document.createElement("p");
+    note.className = "manual-note";
+    note.textContent = isCancel
+      ? "在「" + h.name + "」里删除/停用「cigar-monitor」后，点「我已取消」完成。"
+      : "在「" + h.name + "」里按提示词配置保存后，点「已手动接入」完成，提示词将收起。";
+    card.appendChild(note);
+    box.appendChild(card);
+  });
+}
+
+async function scanAiHosts() {
+  const box = $("ai-host-list");
+  box.innerHTML = '<p class="ai-scan-tip">正在扫描本机 AI 助手…</p>';
+  let hosts = [];
+  try {
+    const r = await fetch("/api/ai/scan");
+    const data = await r.json();
+    hosts = data.hosts || [];
+    MCP_URL = data.mcp_url || "";
+  } catch (e) {
+    box.innerHTML = '<p class="ai-scan-tip err">扫描失败，请确认服务正常运行</p>';
+    return;
+  }
+  renderManualHosts(hosts);
+  const installed = hosts.filter((h) => h.installed);
+  if (!installed.length) {
+    box.innerHTML = '<p class="ai-scan-tip">未检测到已安装的 AI 助手，可在下方手动接入</p>';
+    return;
+  }
+  box.innerHTML = "";
+  installed.forEach((h) => {
+    const row = document.createElement("div");
+    row.className = "ai-host";
+    if (h.path) row.title = h.path;
+    const name = document.createElement("span");
+    name.textContent = h.name;
+    const right = document.createElement("div");
+    right.className = "ai-host-right";
+    const badge = document.createElement("em");
+    badge.className = "ai-badge";
+    const btn = document.createElement("button");
+    btn.className = "ai-host-btn";
+    if (h.connected) {
+      badge.classList.add("ok");
+      badge.textContent = "已接入";
+      btn.classList.add("ghost");
+      btn.textContent = "取消";
+      btn.dataset.action = "disconnect";
+    } else if (h.auto_writable) {
+      badge.textContent = "可自动接入";
+      btn.textContent = "接入";
+      btn.dataset.action = "connect";
+    } else {
+      const mstage = getManualStage(h.id);
+      if (mstage === "connected") {
+        badge.classList.add("ok");
+        badge.textContent = "已手动接入";
+        btn.classList.add("ghost");
+        btn.textContent = "取消";
+        btn.dataset.action = "manual-disconnect";
+      } else if (mstage === "connecting" || mstage === "disconnecting") {
+        badge.classList.add("warn");
+        badge.textContent = mstage === "connecting" ? "接入中" : "取消中";
+        btn.classList.add("ghost");
+        btn.textContent = "查看指引";
+        btn.dataset.action = "manual-guide";
+      } else {
+        badge.classList.add("warn");
+        badge.textContent = "暂不支持自动";
+        btn.textContent = "手动接入";
+        btn.dataset.action = "manual-connect";
+      }
+    }
+    btn.dataset.host = h.id;
+    btn.dataset.hostName = h.name;
+    right.appendChild(badge);
+    right.appendChild(btn);
+    row.appendChild(name);
+    row.appendChild(right);
+    box.appendChild(row);
+  });
+}
+
+$("ai-host-list").addEventListener("click", async (e) => {
+  const btn = e.target.closest(".ai-host-btn");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const hostId = btn.dataset.host;
+  const hostName = btn.dataset.hostName;
+  // 手动流程：仅切换本地阶段，不调用后端写入
+  if (action === "manual-connect") {
+    setManualStage(hostId, "connecting");
+    await scanAiHosts();
+    focusManualCard(hostId);
+    toast(`请按提示在「${hostName}」中操作，完成后点「已手动接入」`);
+    return;
+  }
+  if (action === "manual-disconnect") {
+    setManualStage(hostId, "disconnecting");
+    await scanAiHosts();
+    focusManualCard(hostId);
+    toast(`请按提示在「${hostName}」中移除，完成后点「我已取消」`);
+    return;
+  }
+  if (action === "manual-guide") {
+    focusManualCard(hostId);
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/ai/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ host: btn.dataset.host }),
+    });
+    const data = await r.json();
+    if (!r.ok) { toast(data.error || "操作失败", true); return; }
+    if (action === "connect") {
+      await scanAiHosts();
+      toast(`已接入 ${hostName}，可同时接入多个 AI`);
+      const go = await confirmDialog(
+        `重启 ${hostName}`,
+        `是否立即重启 ${hostName}？未保存的内容可能丢失。`,
+        { confirmText: "立即重启" }
+      );
+      if (!go) return;
+      const rr = await fetch("/api/ai/restart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ host: hostId }),
+      });
+      const dd = await rr.json();
+      if (!rr.ok) { toast(dd.error || "重启失败，请手动重启", true); }
+      else { toast(`${hostName} 正在重启`); }
+    } else {
+      toast("已取消接入");
+      await scanAiHosts();
+    }
+  } catch (err) {
+    toast("操作失败，请确认服务正常", true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("ai-manual-hosts").addEventListener("click", async (e) => {
+  const copyBtn = e.target.closest(".copy-prompt");
+  const confirmBtn = e.target.closest(".manual-confirm");
+  const hostId = (copyBtn || confirmBtn).dataset.target;
+  const card = document.getElementById("manual-host-" + hostId);
+  const name = card.querySelector(".manual-host-name").childNodes[0].textContent.trim();
+
+  // 阶段确认：已手动接入 / 我已取消
+  if (confirmBtn) {
+    if (confirmBtn.dataset.stage === "done-connect") {
+      setManualStage(hostId, "connected");
+      await scanAiHosts();
+      toast(`已完成「${name}」手动接入`);
+    } else {
+      setManualStage(hostId, "");
+      await scanAiHosts();
+      toast(`已确认「${name}」取消接入`);
+    }
+    return;
+  }
+
+  // 复制当前（接入或取消）提示词
+  const ta = card.querySelector(".manual-prompt");
+  const text = ta.value;
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    ok = true;
+  } catch (err) {
+    try {
+      ta.removeAttribute("readonly");
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      ok = document.execCommand("copy");
+      ta.setAttribute("readonly", true);
+    } catch (e2) { ok = false; }
+  }
+  toast(ok ? "提示词已复制，去发给 " + name : "复制失败，请手动选择文本", !ok);
+});
+
+$("ai-rescan").addEventListener("click", scanAiHosts);
+$("btn-ai-manage").addEventListener("click", openAiModal);
+$("btn-ai-manage").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAiModal(); }
+});
+$("ai-modal-close").addEventListener("click", closeAiModal);
+$("ai-cancel").addEventListener("click", closeAiModal);
+$("ai-modal").addEventListener("click", (e) => {
+  if (e.target.id === "ai-modal") closeAiModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $("ai-modal").classList.contains("show")) closeAiModal();
 });
 
 /* ---------------- 自动刷新 ---------------- */

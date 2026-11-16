@@ -14,7 +14,12 @@ __pycache__/
 *.log
 
 # 二进制图标资产（运行 make_icons.py 即可生成，无需提交）
-assets/
+assets/*
+# 保留 README 展示图（合成演示数据，不含任何个人数据）
+!assets/readme/
+
+# 旧版前端源码备份（仅本地留存，不进公开仓库）
+backup_1.2.1/
 
 # 旧二进制种子库（种子已改为纯文本 products.json）
 seed/*.db

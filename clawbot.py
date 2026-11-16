@@ -31,7 +31,7 @@ DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com"
 # 与官方插件包 @tencent-weixin/openclaw-weixin 的协议保持一致
 ILINK_APP_ID = "bot"
 ILINK_APP_CLIENT_VERSION = "132106"      # 2.4.10 -> (2<<16)|(4<<8)|10
-CHANNEL_VERSION = "cigar-monitor-1.2.1"
+CHANNEL_VERSION = "cigar-monitor-1.2.0"
 BOT_TYPE = "3"
 LOGIN_TTL = 5 * 60                        # 单次扫码会话有效期（秒）
 TOKEN_POOL_SIZE = 20
