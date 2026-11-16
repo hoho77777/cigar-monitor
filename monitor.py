@@ -112,16 +112,72 @@ def fetch(url):
     return _fetch_cloudflare(url)
 
 
+# 标题提取时视为“错误页/非商品名”的标题特征
+_BAD_TITLE_MARKERS = (
+    "too many requests", "access denied", "just a moment",
+    "attention required", "cloudflare", "error 429",
+    "403 forbidden", "service unavailable",
+)
+
+
+def _clean_title(value):
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _ld_name(tag):
+    """读取一个 JSON-LD 标签里的 name 字段（若有）。"""
+    try:
+        data = _loads_lenient(tag.string or "")
+    except Exception:
+        return None
+    if isinstance(data, dict) and data.get("name"):
+        return str(data["name"])
+    return None
+
+
+def _title_is_usable(value, station_words):
+    """标题需非空、不是错误页、也不是站点自身名称，才算可用的商品名。"""
+    low = _clean_title(value).lower()
+    if not low:
+        return False
+    if any(marker in low for marker in _BAD_TITLE_MARKERS):
+        return False
+    if low in station_words:
+        return False
+    return True
+
+
 def fetch_page_title(url):
-    """添加监控项时用于自动获取商品名称。"""
+    """添加监控项时自动获取商品名称。
+
+    依次尝试 og:title / h1 / JSON-LD 名称 / <title>，自动跳过站名与错误页标题，
+    避免把 “CigarOne”“Too many requests” 这类非商品名当成商品名。
+    """
     try:
         text, _ = fetch(url)
         soup = BeautifulSoup(text, "html.parser")
+
+        host = urlparse(url).netloc.lower().replace("www.", "")
+        # 域名主体即站名，如 www.cigarone.com -> cigarone
+        station_words = {host.split(".")[0]} if host else set()
+
+        candidates = []
         og = soup.find("meta", attrs={"property": "og:title"})
         if og and og.get("content"):
-            return re.sub(r"\s+", " ", og["content"]).strip()
-        if soup.title and soup.title.get_text(strip=True):
-            return re.sub(r"\s+", " ", soup.title.get_text(strip=True)).strip()
+            candidates.append(og["content"])
+        h1 = soup.find("h1")
+        if h1:
+            candidates.append(h1.get_text(" ", strip=True))
+        for tag in soup.find_all("script", type="application/ld+json"):
+            name = _ld_name(tag)
+            if name:
+                candidates.append(name)
+        if soup.title:
+            candidates.append(soup.title.get_text(strip=True))
+
+        for candidate in candidates:
+            if _title_is_usable(candidate, station_words):
+                return _clean_title(candidate)
     except Exception:
         pass
     return ""

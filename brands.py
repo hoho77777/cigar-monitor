@@ -78,6 +78,9 @@ EN_CANONICAL = {
     "macanudo": "Macanudo",
     "veguero": "Vegueros",
     "troya": "Troya",
+    # Saint Luis Rey 的专属强特征（rey 仅为弱特征，单独留给 El Rey del Mundo）
+    "luis": "Saint Luis Rey",
+    "saint": "Saint Luis Rey",
     # 多词品牌
     "sancho": "Sancho Panza",
     "panza": "Sancho Panza",

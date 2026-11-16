@@ -274,6 +274,19 @@ def products():
     return jsonify([with_tags(p) for p in db.list_products()])
 
 
+# 拦截/限流页的标题特征：抓到这类标题时回退用域名，避免把错误页当商品名
+BAD_TITLE_PATTERNS = (
+    "too many requests", "access denied", "just a moment",
+    "attention required", "cloudflare", "error 429",
+    "403 forbidden", "service unavailable",
+)
+
+
+def _is_bad_title(title):
+    low = str(title or "").strip().lower()
+    return any(p in low for p in BAD_TITLE_PATTERNS)
+
+
 @app.route("/api/products", methods=["POST"])
 def add_product():
     data = request.get_json(force=True)
@@ -286,6 +299,9 @@ def add_product():
 
     if not name:
         name = fetch_page_title(url) or urlparse(url).netloc
+    # 抓到限流/拦截页标题时回退用域名，避免错误标题入库
+    if _is_bad_title(name):
+        name = urlparse(url).netloc
     name = re.sub(r"\s+", " ", name).strip()
     pid = db.create_product(name[:120], url)
     perform_check(pid)        # 添加后立即检查一次

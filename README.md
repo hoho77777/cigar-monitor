@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.0-2563EB" alt="version 1.2.0">
+  <img src="https://img.shields.io/badge/version-1.2.1-2563EB" alt="version 1.2.1">
   <img src="https://img.shields.io/badge/python-3.x-3776AB" alt="python">
   <img src="https://img.shields.io/badge/license-MIT-10B981" alt="license MIT">
   <img src="https://img.shields.io/badge/platform-Windows-0078D4" alt="platform windows">
@@ -54,6 +54,7 @@ CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页
 ## 功能特性
 
 - **定时巡检**：添加网址即自动识别商品名并完成首次检查，默认每 5 分钟轮询（界面可调，最小 30 秒）
+- **智能商品名识别**：按 og:title / 页面主标题（h1）/ JSON-LD / 标题标签顺序自动取名，自动跳过站点名与「Too many requests」等错误页标题，识别不到才回退用域名，不会把站名当成商品名
 - **有货提醒**：仅在「缺货 → 有货」时触发，系统托盘 / 邮件 / 微信三路同时发送，互不阻塞，任一成功即算已提醒，不重复刷屏；**没有开关**，配置完即自动生效
 - **微信通知（免费）**：内置微信官方 ClawBot 通道，扫一次码即可用。不注册第三方推送平台、不填 API Key、不新增 Python 依赖、全程 0 元
 - **中文搜索**：内置 34 个雪茄品牌的中英文词库，简称、全称都认；品牌标签在英文后标注中文
@@ -74,7 +75,7 @@ CigarMonitor 是一个**本地部署的雪茄库存监控工具**：把商品页
 
 ### 桌面版（推荐）
 
-1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases) 下载安装包 `CigarMonitor_v1.2.0_setup.exe` 双击安装（自动建桌面快捷方式）；也可下载免安装的 `CigarMonitor_v1.2.0_windows.zip` 解压使用，整包包含 `CigarMonitor.exe` 与 `_internal`，两者必须放在一起，不要只移动 exe
+1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases) 下载安装包 `CigarMonitor_v1.2.1_setup.exe` 双击安装（自动建桌面快捷方式）；也可下载免安装的 `CigarMonitor_v1.2.1_windows.zip` 解压使用，整包包含 `CigarMonitor.exe` 与 `_internal`，两者必须放在一起，不要只移动 exe
 2. 双击 `CigarMonitor.exe`，稍候弹出原生窗口
 3. （可选）在「微信通知 · ClawBot」点「扫码绑定微信」，手机微信扫一次即可，无需任何账号或 API Key
 4. 在「发信邮箱与监控设置」填入邮箱账号和 **SMTP 授权码**，保存后可点「发送测试邮件」；只想要微信通知可跳过
