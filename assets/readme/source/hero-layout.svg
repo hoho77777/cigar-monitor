@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1200" height="440" viewBox="0 0 1200 440"
+     role="img" aria-labelledby="heroTitle heroDesc">
+  <title id="heroTitle">CigarMonitor · 雪茄库存监控</title>
+  <desc id="heroDesc">本地部署的雪茄库存监控工具兼标准 MCP server：定时巡检商品页，缺货转有货时通过邮件、Windows 系统通知与微信三通道提醒，并在邮件里直接算好人民币到手价。</desc>
+
+  <defs>
+    <radialGradient id="warmGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#6B4A1E" stop-opacity="0.55"/>
+      <stop offset="0.55" stop-color="#3A2812" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#0D0B09" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bgTone" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12100D"/>
+      <stop offset="1" stop-color="#0A0908"/>
+    </linearGradient>
+    <linearGradient id="footFade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0A0908" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0A0908" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="440" fill="url(#bgTone)"/>
+  <ellipse cx="972" cy="238" rx="430" ry="300" fill="url(#warmGlow)"/>
+
+  <!-- 监控环 motif：雪茄环标被放大成一条扫描弧 -->
+  <g fill="none" stroke="#C8A45C">
+    <circle cx="962" cy="232" r="208" stroke-width="1" opacity="0.16" stroke-dasharray="3 9"/>
+    <circle cx="962" cy="232" r="166" stroke-width="1.4" opacity="0.22" stroke-dasharray="120 900" transform="rotate(-38 962 232)"/>
+    <circle cx="962" cy="232" r="250" stroke-width="1" opacity="0.10"/>
+  </g>
+
+  <!-- 生成主体：点燃的雪茄（透明图层） -->
+  <g id="subject">
+    <image x="690" y="25" width="444" height="395"
+           xlink:href="hero-subject.png" href="hero-subject.png"/>
+  </g>
+
+  <!-- 状态徽标 -->
+  <g id="badge">
+    <rect x="928" y="58" width="196" height="42" rx="21" fill="#132018" stroke="#2C6A46" stroke-width="1"/>
+    <circle cx="950" cy="79" r="5" fill="#3FD07A"/>
+    <text x="966" y="85" font-size="18" font-weight="700" fill="#7FE0A6"
+          font-family="'Noto Sans CJK SC', -apple-system, 'PingFang SC', sans-serif">有货 · 3 通道已推送</text>
+  </g>
+
+  <!-- 底部渐隐，让画面收在暗部 -->
+  <rect x="0" y="356" width="1200" height="84" fill="url(#footFade)"/>
+
+  <!-- 标题区 -->
+  <g id="title-block" font-family="'Noto Sans CJK SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    <g id="eyebrow">
+      <circle cx="72" cy="70" r="4.5" fill="none" stroke="#C8A45C" stroke-width="1.6"/>
+      <circle cx="72" cy="70" r="1.6" fill="#C8A45C"/>
+      <text x="90" y="76" font-size="17" font-weight="600" fill="#A6906B" letter-spacing="1.2">本地部署 · 标准 MCP server · 不内置大模型</text>
+    </g>
+
+    <text id="repo-name" x="64" y="158" font-size="64" font-weight="800" fill="#F6EFE2" letter-spacing="-1.2">CigarMonitor</text>
+    <text x="67" y="200" font-size="27" font-weight="700" fill="#D9B26A" letter-spacing="2">雪茄库存监控</text>
+
+    <text x="66" y="256" font-size="20" fill="#B6A995">把商品页网址丢进来，它替你盯着那一盒。</text>
+    <text x="66" y="288" font-size="20" fill="#B6A995">从「缺货」变「有货」，邮件、系统通知、微信一起响。</text>
+
+    <line x1="66" y1="326" x2="566" y2="326" stroke="#2A241C" stroke-width="1"/>
+    <text x="66" y="366" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="16" fill="#857767" letter-spacing="0.6">v1.3.0 · Python · Windows · MIT · 数据只存本机</text>
+  </g>
+</svg>
