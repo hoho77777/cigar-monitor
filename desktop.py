@@ -26,6 +26,10 @@ from app import ensure_database, start_scheduler, stop_scheduler, run_flask
 # 崩溃与静默退出日志，放在应用数据根目录
 CRASH_LOG = os.path.join(os.path.dirname(DATA_DIR), "crash.log")
 
+# WebView2 固定数据目录（关闭隐私模式，避免每次启动用临时目录、状态不保留）
+WEBVIEW_STORAGE = os.path.join(os.path.dirname(DATA_DIR), "webview")
+os.makedirs(WEBVIEW_STORAGE, exist_ok=True)
+
 state = {
     "allow_close": False,
     "hide_notified": False,
@@ -211,7 +215,8 @@ def main():
         state["current_window"] = window
 
         try:
-            webview.start(gui="edgechromium")
+            webview.start(gui="edgechromium", private_mode=False,
+                          storage_path=WEBVIEW_STORAGE)
         except Exception as e:
             _write_crash("桌面窗口启动异常", e)
 

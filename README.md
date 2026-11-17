@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.0-C8A45C" alt="version 1.3.0">
+  <img src="https://img.shields.io/badge/version-1.3.1-C8A45C" alt="version 1.3.1">
   <img src="https://img.shields.io/badge/MCP-server-3FD07A" alt="标准 MCP server">
   <img src="https://img.shields.io/badge/python-3.x-3776AB" alt="python 3">
   <img src="https://img.shields.io/badge/platform-Windows-0078D4" alt="Windows">
@@ -73,7 +73,7 @@ CigarMonitor 是一个 Windows 桌面应用，也是一个标准 MCP server。�
 
 ### 桌面版（推荐）
 
-1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases/latest) 下载 `CigarMonitor_v1.3.0_setup.exe` 双击安装；免安装版 `CigarMonitor_v1.3.0_windows.zip` 解压后，`CigarMonitor.exe` 与 `_internal` 必须保持同级
+1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases/latest) 下载 `CigarMonitor_v1.3.1_setup.exe` 双击安装；免安装版 `CigarMonitor_v1.3.1_windows.zip` 解压后，`CigarMonitor.exe` 与 `_internal` 必须保持同级
 2. 打开 `CigarMonitor.exe`，在「发信邮箱与监控设置」填入邮箱账号与 **SMTP 授权码**，保存后点「发送测试邮件」验证
 3. 需要微信推送就在下方扫码绑定 ClawBot
 4. 顶部粘贴商品网址即可添加监控，列表默认为空，由你自行添加

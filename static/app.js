@@ -763,38 +763,59 @@ $("btn-check-update").addEventListener("click", async () => {
 });
 
 /* ---------------- AI 接入弹窗 ---------------- */
-// 手动接入的阶段由用户在本软件自确认（后端读不到这类 Host 的配置），持久化到 localStorage。
 // 阶段：""(未接入) | "connecting"(接入中) | "connected"(已接入) | "disconnecting"(取消中)
+// 状态以后端 SQLite 为准（不依赖 WebView2 隐私模式/localStorage），内存缓存 + localStorage 兜底。
 const MANUAL_FLOW_KEY = "cigar_manual_flow";
 const MANUAL_LEGACY_KEY = "cigar_manual_connected";
+let manualFlow = {};
 
-function getManualFlow() {
+// 启动时从后端加载；后端为空时把 localStorage 旧数据迁移上报，再清掉本地副本
+async function loadManualFlow() {
+  try {
+    const r = await fetch("/api/ai/manual-flow");
+    const data = await r.json();
+    manualFlow = (data.flow && typeof data.flow === "object") ? data.flow : {};
+  } catch (e) {
+    manualFlow = {};
+  }
+  let local = {};
   try {
     const v = JSON.parse(localStorage.getItem(MANUAL_FLOW_KEY) || "{}");
-    if (v && typeof v === "object" && !Array.isArray(v)) return v;
-  } catch (e) { /* ignore */ }
-  return {};
-}
-function getManualStage(hostId) {
-  return getManualFlow()[hostId] || "";
-}
-function setManualStage(hostId, stage) {
-  const flow = getManualFlow();
-  if (stage) flow[hostId] = stage; else delete flow[hostId];
-  localStorage.setItem(MANUAL_FLOW_KEY, JSON.stringify(flow));
-}
-// 一次性迁移旧版「已接入 id 数组」
-(function migrateLegacyManual() {
-  try {
+    if (v && typeof v === "object" && !Array.isArray(v)) local = v;
+    // 兼容更旧的「已接入 id 数组」
     const old = JSON.parse(localStorage.getItem(MANUAL_LEGACY_KEY) || "[]");
-    if (Array.isArray(old) && old.length) {
-      const flow = getManualFlow();
-      old.forEach((id) => { if (!flow[id]) flow[id] = "connected"; });
-      localStorage.setItem(MANUAL_FLOW_KEY, JSON.stringify(flow));
-    }
+    if (Array.isArray(old)) old.forEach((id) => { if (!local[id]) local[id] = "connected"; });
+  } catch (e) { /* ignore */ }
+  let changed = false;
+  Object.keys(local).forEach((id) => {
+    if (!manualFlow[id] && local[id]) { manualFlow[id] = local[id]; changed = true; }
+  });
+  if (changed) await persistManualFlow();
+  try {
+    localStorage.removeItem(MANUAL_FLOW_KEY);
     localStorage.removeItem(MANUAL_LEGACY_KEY);
   } catch (e) { /* ignore */ }
-})();
+}
+
+function getManualFlow() { return manualFlow; }
+function getManualStage(hostId) { return manualFlow[hostId] || ""; }
+
+async function persistManualFlow() {
+  try {
+    await fetch("/api/ai/manual-flow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ flow: manualFlow }),
+    });
+  } catch (e) { /* ignore */ }
+  // localStorage 仅作离线兜底
+  try { localStorage.setItem(MANUAL_FLOW_KEY, JSON.stringify(manualFlow)); } catch (e) {}
+}
+
+async function setManualStage(hostId, stage) {
+  if (stage) manualFlow[hostId] = stage; else delete manualFlow[hostId];
+  await persistManualFlow();
+}
 
 function openAiModal() {
   scanAiHosts();
@@ -984,14 +1005,14 @@ $("ai-host-list").addEventListener("click", async (e) => {
   const hostName = btn.dataset.hostName;
   // 手动流程：仅切换本地阶段，不调用后端写入
   if (action === "manual-connect") {
-    setManualStage(hostId, "connecting");
+    await setManualStage(hostId, "connecting");
     await scanAiHosts();
     focusManualCard(hostId);
     toast(`请按提示在「${hostName}」中操作，完成后点「已手动接入」`);
     return;
   }
   if (action === "manual-disconnect") {
-    setManualStage(hostId, "disconnecting");
+    await setManualStage(hostId, "disconnecting");
     await scanAiHosts();
     focusManualCard(hostId);
     toast(`请按提示在「${hostName}」中移除，完成后点「我已取消」`);
@@ -1048,11 +1069,11 @@ $("ai-manual-hosts").addEventListener("click", async (e) => {
   // 阶段确认：已手动接入 / 我已取消
   if (confirmBtn) {
     if (confirmBtn.dataset.stage === "done-connect") {
-      setManualStage(hostId, "connected");
+      await setManualStage(hostId, "connected");
       await scanAiHosts();
       toast(`已完成「${name}」手动接入`);
     } else {
-      setManualStage(hostId, "");
+      await setManualStage(hostId, "");
       await scanAiHosts();
       toast(`已确认「${name}」取消接入`);
     }
@@ -1104,6 +1125,7 @@ async function init() {
   setGreeting();
   await loadVersion();
   await loadSettings();
+  await loadManualFlow();
   await loadClawbotStatus();
   await loadBrands();
   await refreshAll();

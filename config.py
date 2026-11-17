@@ -5,7 +5,7 @@ import sys
 import socket
 
 # 软件版本（语义化版本：主.次.修订）
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.3.1"
 
 # GitHub 仓库（用于检测与下载更新）
 GITHUB_OWNER = "hoho77777"
@@ -76,6 +76,8 @@ DEFAULT_SETTINGS = {
     # ClawBot 凭证与会话状态（JSON 文本，仅存本机 SQLite，不上传）
     "clawbot_cred": "",
     "clawbot_state": "",
+    # 手动接入 AI 的阶段（JSON 文本，{hostId: stage}，后端持久化，不依赖 WebView2）
+    "manual_ai_flow": "{}",
 }
 
 # 抓取参数

@@ -488,20 +488,112 @@ def _process_path_by_name(process_name):
     return None
 
 
+def _proc_names(h):
+    return h.get("process_names") or (
+        [h["process_name"]] if h.get("process_name") else [])
+
+
+def _uninstall_icon_by_name(display_name):
+    """按显示名在卸载注册表中找 DisplayIcon 指向的可执行文件（不依赖运行状态）。"""
+    try:
+        import winreg
+        roots = [
+            (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall")]
+        for root, sub in roots:
+            try:
+                k = winreg.OpenKey(root, sub)
+            except OSError:
+                continue
+            i = 0
+            while True:
+                try:
+                    sk = winreg.EnumKey(k, i); i += 1
+                except OSError:
+                    break
+                try:
+                    appk = winreg.OpenKey(k, sk)
+                    dn = winreg.QueryValueEx(appk, "DisplayName")[0]
+                    if display_name.lower() in dn.lower():
+                        try:
+                            icon = winreg.QueryValueEx(appk, "DisplayIcon")[0]
+                        except OSError:
+                            icon = ""
+                        p = icon.split(",")[0].strip().strip('"')
+                        if p and os.path.exists(p):
+                            return p
+                except OSError:
+                    pass
+    except Exception:
+        pass
+    return None
+
+
+def _find_exe_under_dir(root, exe_names, max_depth=4, max_entries=500):
+    """在目录下递归找指定可执行文件（限深度与扫描数量，避免大目录拖慢）。"""
+    targets = {n.lower() for n in exe_names}
+    root = os.path.abspath(root)
+    seen = 0
+
+    def walk(d, depth):
+        nonlocal seen
+        if depth > max_depth or seen > max_entries:
+            return None
+        try:
+            entries = os.listdir(d)
+        except OSError:
+            return None
+        for name in entries:
+            full = os.path.join(d, name)
+            seen += 1
+            if os.path.isfile(full) and name.lower() in targets:
+                return full
+        for name in entries:
+            full = os.path.join(d, name)
+            if os.path.isdir(full):
+                r = walk(full, depth + 1)
+                if r:
+                    return r
+        return None
+
+    return walk(root, 0)
+
+
+def _detect_host_install(h):
+    """按强证据优先判定是否安装，避免把卸载后残留的配置目录误判为已安装。
+
+    证据优先级：运行进程 → 注册表卸载条目 → mark 指向的 exe → 目录内递归找到的 exe。
+    """
+    # 1. 运行进程（覆盖任意自定义安装路径）
+    for pn in _proc_names(h):
+        p = _process_path_by_name(pn)
+        if p:
+            return p
+    # 2. 注册表卸载条目（系统登记的安装实体）
+    p = _uninstall_icon_by_name(h["name"])
+    if p:
+        return p
+    exe_names = _proc_names(h)
+    for m in h["marks"]:
+        if not m:
+            continue
+        # 3. mark 直接指向可执行文件
+        if os.path.isfile(m) and m.lower().endswith(".exe"):
+            return m
+        # 4. 目录类 mark：里面能找到对应 exe 才算；纯配置/日志残留不会误判
+        if os.path.isdir(m) and exe_names:
+            p = _find_exe_under_dir(m, exe_names)
+            if p:
+                return p
+    return ""
+
+
 @app.route("/api/ai/scan")
 def ai_scan():
     hosts = []
     for h in AI_HOSTS:
-        found = next((p for p in h["marks"] if p and os.path.exists(p)), "")
-        # 路径标记都没命中时，按运行进程兜底发现（覆盖任意自定义安装路径）
-        # 支持多个进程名候选，兼容不同版本/命名
-        if not found:
-            proc_names = h.get("process_names") or (
-                [h["process_name"]] if h.get("process_name") else [])
-            for pn in proc_names:
-                found = _process_path_by_name(pn) or ""
-                if found:
-                    break
+        found = _detect_host_install(h)
         hosts.append({"id": h["id"], "name": h["name"],
                       "installed": bool(found), "path": found,
                       "auto_writable": bool(h["config_path"]),
@@ -513,7 +605,7 @@ def ai_scan():
 def _ai_config_action(connect):
     payload = request.get_json(silent=True) or {}
     host = next((h for h in AI_HOSTS if h["id"] == payload.get("host")), None)
-    if not host or not any(p and os.path.exists(p) for p in host["marks"]):
+    if not host or not _detect_host_install(host):
         return jsonify({"error": "Host 不可用"}), 400
     if not host["config_path"]:
         return jsonify({"error": "该 Host 暂不支持自动写入，请用手动接入"}), 400
@@ -532,6 +624,35 @@ def ai_connect():
 @app.route("/api/ai/disconnect", methods=["POST"])
 def ai_disconnect():
     return _ai_config_action(False)
+
+
+# ---------------- 手动接入状态（后端持久化，不依赖 WebView2/localStorage） ----------------
+def _load_manual_flow():
+    try:
+        data = json.loads(db.get_settings().get("manual_ai_flow", "{}") or "{}")
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    return {}
+
+
+@app.route("/api/ai/manual-flow")
+def ai_manual_flow_get():
+    return jsonify({"flow": _load_manual_flow()})
+
+
+@app.route("/api/ai/manual-flow", methods=["POST"])
+def ai_manual_flow_save():
+    payload = request.get_json(silent=True) or {}
+    flow = payload.get("flow")
+    if not isinstance(flow, dict):
+        return jsonify({"error": "flow 必须是对象"}), 400
+    # 只保留合法阶段，避免写入脏数据
+    allowed = ("", "connecting", "connected", "disconnecting")
+    clean = {str(k): str(v) for k, v in flow.items() if str(v) in allowed}
+    db.save_settings({"manual_ai_flow": json.dumps(clean, ensure_ascii=False)})
+    return jsonify({"flow": clean})
 
 
 def _find_host_exe(h):
