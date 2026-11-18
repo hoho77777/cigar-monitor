@@ -8,6 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.x-3776AB" alt="python 3">
   <img src="https://img.shields.io/badge/platform-Windows-0078D4" alt="Windows">
   <img src="https://img.shields.io/badge/license-MIT-9A8D7C" alt="MIT license">
+  <a href="https://m8ven.ai/mcp/hoho77777-cigar-monitor-1j3fyo?s=readme"><img src="https://m8ven.ai/badge/mcp/hoho77777-cigar-monitor-1j3fyo?v=7a25e6163c91e0014e81165039caf8ff" alt="M8ven Score"></a>
 </p>
 
 **把商品页网址丢进去，它替你盯着那一盒。** 缺货转有货的那一刻，邮件、Windows 系统通知、微信同时响；邮件里已经算好人民币到手总价和单支价。数据全部留在自己电脑里，不经过第三方服务器。
