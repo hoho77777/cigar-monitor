@@ -14,12 +14,22 @@ GITHUB_REPO = "cigar-monitor"
 # 运行模式：PyInstaller 打包后 sys.frozen=True
 IS_FROZEN = getattr(sys, "frozen", False)
 
+# 平台标识
+IS_WINDOWS = sys.platform == "win32"
+IS_MAC = sys.platform == "darwin"
+
 # 只读资源目录（templates / static / 种子）
 RESOURCE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 
-# 可写数据目录：打包后放 %LOCALAPPDATA%\CigarMonitor，开发模式放项目内
+# 可写数据目录：
+# - Windows 打包后放 %LOCALAPPDATA%\CigarMonitor
+# - macOS 打包后放 ~/Library/Application Support/CigarMonitor
+# - 开发模式统一放项目内 data
 if IS_FROZEN:
-    _app_root = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "CigarMonitor")
+    if IS_MAC:
+        _app_root = os.path.expanduser("~/Library/Application Support/CigarMonitor")
+    else:
+        _app_root = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "CigarMonitor")
     DATA_DIR = os.path.join(_app_root, "data")
 else:
     DATA_DIR = os.path.join(RESOURCE_DIR, "data")

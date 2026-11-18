@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import subprocess
 import time
 import threading
 import ctypes
@@ -17,7 +18,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import database as db
 from config import (WEB_HOST, WEB_PORT, SMTP_PRESETS, RESOURCE_DIR,
                     DB_PATH, SEED_JSON, APP_VERSION, SAME_DOMAIN_GAP,
-                    BACKOFF_BASE, BACKOFF_MULTIPLIER, BACKOFF_MAX)
+                    BACKOFF_BASE, BACKOFF_MULTIPLIER, BACKOFF_MAX,
+                    IS_MAC, IS_WINDOWS)
 from monitor import check_product, fetch_page_title
 from notifier import (send_email, back_in_stock_html, test_email_html,
                       stock_greeting, brand_label)
@@ -372,33 +374,69 @@ def _qianwen_marks():
     return [p for p in marks if p]
 
 
+def _mac_hosts():
+    """macOS 版 AI Host 定义：应用在 /Applications，配置在 ~/Library。"""
+    home = os.path.expanduser("~")
+    app_support = os.path.join(home, "Library", "Application Support")
+    return [
+        {"id": "claude", "name": "Claude Desktop", "marks": [
+            os.path.join(app_support, "Claude"),
+            os.path.join("/Applications", "Claude.app")],
+         "config_path": os.path.join(app_support, "Claude",
+                                     "claude_desktop_config.json"),
+         "process_name": "Claude"},
+        {"id": "doubao", "name": "豆包", "marks": [
+            os.path.join(app_support, "Doubao"),
+            os.path.join("/Applications", "豆包.app"),
+            os.path.join("/Applications", "Doubao.app")],
+         "config_path": None, "process_name": "Doubao"},
+        {"id": "workbuddy", "name": "WorkBuddy", "marks": [
+            os.path.join(home, ".workbuddy")],
+         "config_path": os.path.join(home, ".workbuddy", "mcp.json"),
+         "process_name": "WorkBuddy"},
+        {"id": "winclaw", "name": "WinClaw", "marks": [
+            os.path.join(home, ".openclaw")],
+         "config_path": os.path.join(home, ".openclaw", "openclaw.json"),
+         "process_name": "WinClaw"},
+        {"id": "qwenwork", "name": "千问", "marks": [
+            os.path.join(app_support, "Qianwen"),
+            os.path.join(app_support, "Qwen"),
+            os.path.join("/Applications", "千问.app")],
+         "config_path": None, "process_name": "Qwen",
+         "process_names": ["Qwen", "Qianwen", "QwenWork"]},
+    ]
+
+
 # id | 名称 | 安装标记路径 | 可自动写入的配置文件（None=暂不支持自动写入）
-AI_HOSTS = [
-    {"id": "claude", "name": "Claude Desktop", "marks": [
-        os.path.join(os.environ.get("APPDATA", ""), "Claude"),
-        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Claude")],
-     "config_path": os.path.join(os.environ.get("APPDATA", ""),
-                                "Claude", "claude_desktop_config.json"),
-     "process_name": "Claude.exe"},
-    {"id": "doubao", "name": "豆包", "marks": _doubao_marks(),
-     "config_path": None, "process_name": "Doubao.exe"},
-    {"id": "workbuddy", "name": "WorkBuddy", "marks": [
-        os.path.join(os.path.expanduser("~"), ".workbuddy"),
-        os.path.join(os.environ.get("LOCALAPPDATA", ""), "WorkBuddy"),
-        os.path.join(os.environ.get("APPDATA", ""), "WorkBuddy")],
-     "config_path": os.path.join(os.path.expanduser("~"),
-                                ".workbuddy", "mcp.json"),
-     "process_name": "WorkBuddy.exe"},
-    {"id": "winclaw", "name": "WinClaw", "marks": [
-        os.path.join(os.path.expanduser("~"), ".openclaw")],
-     "config_path": os.path.join(os.path.expanduser("~"),
-                                ".openclaw", "openclaw.json"),
-     "process_name": "WinClaw.exe"},
-    {"id": "qwenwork", "name": "千问",
-     "marks": _qianwen_marks(),
-     "config_path": None, "process_name": "qianwen.exe",
-     "process_names": ["qianwen.exe", "QwenWork.exe", "Qwen.exe"]},
-]
+if IS_MAC:
+    AI_HOSTS = _mac_hosts()
+else:
+    AI_HOSTS = [
+        {"id": "claude", "name": "Claude Desktop", "marks": [
+            os.path.join(os.environ.get("APPDATA", ""), "Claude"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Claude")],
+         "config_path": os.path.join(os.environ.get("APPDATA", ""),
+                                    "Claude", "claude_desktop_config.json"),
+         "process_name": "Claude.exe"},
+        {"id": "doubao", "name": "豆包", "marks": _doubao_marks(),
+         "config_path": None, "process_name": "Doubao.exe"},
+        {"id": "workbuddy", "name": "WorkBuddy", "marks": [
+            os.path.join(os.path.expanduser("~"), ".workbuddy"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "WorkBuddy"),
+            os.path.join(os.environ.get("APPDATA", ""), "WorkBuddy")],
+         "config_path": os.path.join(os.path.expanduser("~"),
+                                    ".workbuddy", "mcp.json"),
+         "process_name": "WorkBuddy.exe"},
+        {"id": "winclaw", "name": "WinClaw", "marks": [
+            os.path.join(os.path.expanduser("~"), ".openclaw")],
+         "config_path": os.path.join(os.path.expanduser("~"),
+                                    ".openclaw", "openclaw.json"),
+         "process_name": "WinClaw.exe"},
+        {"id": "qwenwork", "name": "千问",
+         "marks": _qianwen_marks(),
+         "config_path": None, "process_name": "qianwen.exe",
+         "process_names": ["qianwen.exe", "QwenWork.exe", "Qwen.exe"]},
+    ]
 
 
 def _mcp_entry():
@@ -438,11 +476,30 @@ def _write_host_config(config_path, connect):
     return True, ""
 
 
+def _mac_process_path(process_name):
+    """macOS 下按可执行名返回首个匹配进程的完整路径，无则 None。用 ps，不引入新依赖。"""
+    try:
+        out = subprocess.run(["ps", "-axo", "pid=,comm="],
+                             capture_output=True, text=True, timeout=20)
+    except Exception:
+        return None
+    target = os.path.basename(process_name).lower()
+    for line in out.stdout.splitlines():
+        parts = line.strip().split(None, 1)
+        if len(parts) == 2:
+            _pid, path = parts
+            if os.path.basename(path).lower() == target:
+                return path
+    return None
+
+
 def _process_path_by_name(process_name):
     """按进程名（不区分大小写）返回首个匹配进程的完整映像路径，无则 None。
 
-    用 ctypes 调 Toolhelp API，不引入 psutil 等新依赖。
+    Windows 用 ctypes 调 Toolhelp API；macOS 走 ps，均不引入 psutil。
     """
+    if IS_MAC:
+        return _mac_process_path(process_name)
     TH32CS_SNAPPROCESS = 0x00000002
     PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
@@ -495,6 +552,9 @@ def _proc_names(h):
 
 def _uninstall_icon_by_name(display_name):
     """按显示名在卸载注册表中找 DisplayIcon 指向的可执行文件（不依赖运行状态）。"""
+    if IS_MAC:
+        # macOS 无注册表，安装实体改由 .app bundle / 应用目录判定
+        return None
     try:
         import winreg
         roots = [
@@ -560,11 +620,29 @@ def _find_exe_under_dir(root, exe_names, max_depth=4, max_entries=500):
     return walk(root, 0)
 
 
+def _detect_host_install_mac(h):
+    """macOS 安装判定：运行进程优先，其次 .app bundle 或应用/配置目录存在。"""
+    # 1. 运行进程（覆盖任意自定义路径）
+    for pn in _proc_names(h):
+        p = _mac_process_path(pn)
+        if p:
+            return p
+    # 2. marks：.app bundle 或已存在的目录即算安装实体
+    for m in h.get("marks", []):
+        if m and os.path.exists(m):
+            if m.endswith(".app") or os.path.isdir(m):
+                return m
+    return ""
+
+
 def _detect_host_install(h):
     """按强证据优先判定是否安装，避免把卸载后残留的配置目录误判为已安装。
 
-    证据优先级：运行进程 → 注册表卸载条目 → mark 指向的 exe → 目录内递归找到的 exe。
+    Windows 证据优先级：运行进程 → 注册表卸载条目 → mark 指向的 exe → 目录内递归找到的 exe。
+    macOS 走 _detect_host_install_mac。
     """
+    if IS_MAC:
+        return _detect_host_install_mac(h)
     # 1. 运行进程（覆盖任意自定义安装路径）
     for pn in _proc_names(h):
         p = _process_path_by_name(pn)
@@ -655,13 +733,42 @@ def ai_manual_flow_save():
     return jsonify({"flow": clean})
 
 
+def _find_host_exe_mac(h):
+    """macOS 定位应用：先取运行进程路径，再从 marks 找 .app bundle。"""
+    for pn in _proc_names(h):
+        p = _mac_process_path(pn)
+        if p:
+            return p
+    for m in h.get("marks", []):
+        if m and m.endswith(".app") and os.path.exists(m):
+            return m
+    return None
+
+
+def _restart_host_mac(h):
+    """macOS 一键重启：pkill 结束实例后用 open 重启 .app。"""
+    target = _find_host_exe_mac(h)
+    if not target:
+        return False, "未找到程序路径，请手动重启"
+    for pn in _proc_names(h):
+        subprocess.run(["pkill", "-x", os.path.basename(pn)],
+                       capture_output=True)
+    time.sleep(2)
+    if target.endswith(".app"):
+        subprocess.Popen(["open", target])
+    else:
+        subprocess.Popen([target], close_fds=True)
+    return True, target
+
+
 def _find_host_exe(h):
+    if IS_MAC:
+        return _find_host_exe_mac(h)
     name = h["process_name"]
     # 1. 从运行中进程取可执行路径
     ps = ("(Get-Process -Name '%s' -ErrorAction SilentlyContinue | "
           "Select-Object -First 1).Path" % name)
     try:
-        import subprocess
         out = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
                              capture_output=True, text=True,
                              timeout=20).stdout.strip()
@@ -703,7 +810,8 @@ def _find_host_exe(h):
 
 
 def _restart_host(h):
-    import subprocess
+    if IS_MAC:
+        return _restart_host_mac(h)
     exe = _find_host_exe(h)
     if not exe:
         return False, "未找到程序路径，请手动重启"

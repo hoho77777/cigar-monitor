@@ -1,13 +1,18 @@
 # -*- coding: utf-8 -*-
-"""生成透明背景的多尺寸 ico 与 png。
+"""生成透明背景的多尺寸 ico / icns 与 png。
 
 两条路径：
 1. 若存在 assets/icon-source.png：从四角 flood fill 精确识别圆角外白色（内部雪茄
    烟灰被深色隔开、不受影响），转透明并柔化边缘；
 2. 否则用 PIL 程序化绘制一个深色圆角底 + 金雪茄的默认图标，保证在没有任何
    二进制源图的情况下也能生成全套图标（仓库因此无需纳入二进制资产）。
+
+Windows 用 .ico，macOS 用 .icns（经 iconutil 生成，无 iconutil 时回退 PIL）。
 """
 import os
+import shutil
+import subprocess
+import sys
 from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -88,9 +93,45 @@ def main():
         rgba.resize((px, px), Image.LANCZOS).save(
             os.path.join(ASSETS, f"icon-{px}.png"))
 
+    # macOS：生成 .icns（优先 iconutil，回退 PIL 直存）
+    if sys.platform == "darwin":
+        _make_icns(rgba)
+
     print("图标生成完成 ->", ASSETS)
     for f in sorted(os.listdir(ASSETS)):
         print(" ", f)
+
+
+def _make_icns(rgba):
+    """由 RGBA 母图生成 cigar.icns。优先用系统 iconutil 保证各尺寸质量。"""
+    iconset = os.path.join(ASSETS, "cigar.iconset")
+    if os.path.isdir(iconset):
+        shutil.rmtree(iconset)
+    os.makedirs(iconset, exist_ok=True)
+    # Apple 规定的 iconset 尺寸与命名
+    for name, px in (("icon_16x16.png", 16), ("icon_16x16@2x.png", 32),
+                     ("icon_32x32.png", 32), ("icon_32x32@2x.png", 64),
+                     ("icon_128x128.png", 128), ("icon_128x128@2x.png", 256),
+                     ("icon_256x256.png", 256), ("icon_256x256@2x.png", 512),
+                     ("icon_512x512.png", 512), ("icon_512x512@2x.png", 1024)):
+        rgba.resize((px, px), Image.LANCZOS).save(os.path.join(iconset, name))
+
+    target = os.path.join(ASSETS, "cigar.icns")
+    if shutil.which("iconutil"):
+        try:
+            subprocess.run(["iconutil", "-c", "icns", iconset, "-o", target],
+                           check=True, capture_output=True)
+            shutil.rmtree(iconset, ignore_errors=True)
+            print("已用 iconutil 生成 cigar.icns")
+            return
+        except Exception as e:
+            print("iconutil 失败，回退 PIL：", e)
+    # 回退：PIL 直接写 icns
+    rgba.resize((512, 512), Image.LANCZOS).save(
+        target, format="ICNS",
+        sizes=[(16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512)])
+    shutil.rmtree(iconset, ignore_errors=True)
+    print("已用 PIL 生成 cigar.icns")
 
 
 if __name__ == "__main__":

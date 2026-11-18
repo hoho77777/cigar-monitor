@@ -6,12 +6,12 @@
   <img src="https://img.shields.io/badge/version-1.3.1-C8A45C" alt="version 1.3.1">
   <img src="https://img.shields.io/badge/MCP-server-3FD07A" alt="标准 MCP server">
   <img src="https://img.shields.io/badge/python-3.x-3776AB" alt="python 3">
-  <img src="https://img.shields.io/badge/platform-Windows-0078D4" alt="Windows">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-0078D4" alt="Windows / macOS">
   <img src="https://img.shields.io/badge/license-MIT-9A8D7C" alt="MIT license">
   <a href="https://m8ven.ai/mcp/hoho77777-cigar-monitor-1j3fyo?s=readme"><img src="https://m8ven.ai/badge/mcp/hoho77777-cigar-monitor-1j3fyo?v=7a25e6163c91e0014e81165039caf8ff" alt="M8ven Score"></a>
 </p>
 
-**把商品页网址丢进去，它替你盯着那一盒。** 缺货转有货的那一刻，邮件、Windows 系统通知、微信同时响；邮件里已经算好人民币到手总价和单支价。数据全部留在自己电脑里，不经过第三方服务器。
+**把商品页网址丢进去，它替你盯着那一盒。** 缺货转有货的那一刻，邮件、系统通知、微信同时响；邮件里已经算好人民币到手总价和单支价。数据全部留在自己电脑里，不经过第三方服务器。
 
 [下载安装包](https://github.com/hoho77777/cigar-monitor/releases/latest) · [查看更新日志](https://github.com/hoho77777/cigar-monitor/releases)
 
@@ -34,7 +34,7 @@
 
 ## 这是什么
 
-CigarMonitor 是一个 Windows 桌面应用，也是一个标准 MCP server。两种用法都在本地：
+CigarMonitor 是一个 Windows / macOS 桌面应用，也是一个标准 MCP server。两种用法都在本地：
 
 - **当监控工具用**：粘贴雪茄商品网址，后台按设定间隔轮询，库存状态发生变化时推送到三个通道。
 - **当 AI 工具用**：软件在 `/mcp` 暴露 8 个工具，本机的 Claude、豆包、WorkBuddy、千问等可以直接查询库存、添加监控、算到手价。软件本身不内置也不打包任何大模型。
@@ -53,7 +53,7 @@ CigarMonitor 是一个 Windows 桌面应用，也是一个标准 MCP server。�
 
 **巡检与提醒**
 - 添加网址即自动识别商品名并完成首次检查，默认每 5 分钟轮询，界面可调到最小 30 秒
-- 只在「缺货 → 有货」时提醒一次，不重复刷屏；邮件、Windows 通知、微信 ClawBot 三通道同时送达
+- 只在「缺货 → 有货」时提醒一次，不重复刷屏；邮件、系统通知、微信 ClawBot 三通道同时送达
 - 站点返回 429 时按 5 → 10 → 20 分钟自动退避，不硬撞
 
 **MCP 接入**
@@ -74,6 +74,8 @@ CigarMonitor 是一个 Windows 桌面应用，也是一个标准 MCP server。�
 
 ### 桌面版（推荐）
 
+**Windows**
+
 1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases/latest) 下载 `CigarMonitor_v1.3.1_setup.exe` 双击安装；免安装版 `CigarMonitor_v1.3.1_windows.zip` 解压后，`CigarMonitor.exe` 与 `_internal` 必须保持同级
 2. 打开 `CigarMonitor.exe`，在「发信邮箱与监控设置」填入邮箱账号与 **SMTP 授权码**，保存后点「发送测试邮件」验证
 3. 需要微信推送就在下方扫码绑定 ClawBot
@@ -82,9 +84,20 @@ CigarMonitor 是一个 Windows 桌面应用，也是一个标准 MCP server。�
 
 > 桌面版依赖 Microsoft Edge WebView2 运行时，Windows 10/11 通常已预装；窗口打不开时到微软官网免费安装「Microsoft Edge WebView2 Runtime」。
 
+**macOS**
+
+1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases) 下载 `CigarMonitor-mac-1.3.1.zip`，解压后把 `CigarMonitor.app` 拖进「应用程序」文件夹
+2. **首次打开**：在「应用程序」里右键点 `CigarMonitor.app` → 选「打开」→ 弹窗再点「打开」。因未做 Apple 公证，双击可能被拦一次，右键打开后就不再提示
+3. 之后启动、添加监控、发测试邮件的步骤与 Windows 版一致
+4. 窗口左上角红灯只是隐藏窗口，监控仍在后台跑；从菜单栏托盘图标可恢复窗口或退出；程序在 Dock 与菜单栏都会出现
+
+> macOS 版使用系统自带 WebKit 渲染，无需安装任何运行时。数据存放在 `~/Library/Application Support/CigarMonitor`，与安装位置分离，更新或重装都不丢。
+
 ### 浏览器版
 
 双击 `start.bat`（首次运行自动安装依赖），浏览器打开 `http://127.0.0.1:5050`，填入邮箱与授权码即可。关闭命令行窗口即停止监控。
+
+macOS 下用浏览器模式：`python3 app.py` 后打开 `http://127.0.0.1:5050`。
 
 ### 邮箱授权码
 
@@ -114,21 +127,30 @@ CigarMonitor 是一个 Windows 桌面应用，也是一个标准 MCP server。�
 
 ## 从源码构建
 
-仓库不含任何二进制（图标、exe、数据库都已 `.gitignore`）。
+仓库只保留一份图标源图 `assets/icon-source.png`，其余二进制（icns/ico/exe/数据库）都已 `.gitignore`。
+
+**Windows**
 
 ```text
 pip install -r requirements.txt
-python make_icons.py    # 生成图标；无源图时绘制「深色圆角底 + 金雪茄」默认图标
+python make_icons.py    # 生成图标；无源图时才退回程序化占位图标
 build.bat               # 打包到 dist\CigarMonitor\
 ```
 
-首次启动不预置监控项；需要预置可在 `seed/products.json` 里加条目（仓库内置为空列表）。开机自启：`Win + R` 输入 `shell:startup`，把 `CigarMonitor.exe` 快捷方式拖进启动文件夹。
+**macOS**
+
+```text
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+./build_mac.sh          # 生成 dist/CigarMonitor.app 与分发 zip
+```
+
+首次启动不预置监控项；需要预置可在 `seed/products.json` 里加条目（仓库内置为空列表）。开机自启：Windows 用 `Win + R` 输入 `shell:startup` 把 `CigarMonitor.exe` 快捷方式拖进启动文件夹；macOS 在「系统设置 → 通用 → 登录项」添加 `CigarMonitor.app`。
 
 ## 数据与安全
 
-- 浏览器版数据在 `data\monitor.db`；桌面版在 `%LOCALAPPDATA%\CigarMonitor\data\monitor.db`
+- 浏览器版数据在 `data/monitor.db`；Windows 桌面版在 `%LOCALAPPDATA%\CigarMonitor\data\monitor.db`，macOS 桌面版在 `~/Library/Application Support/CigarMonitor/data/monitor.db`
 - 邮箱授权码、ClawBot 凭证、收货地址只存在本机，不上传任何第三方
-- 公开仓库只有源码、纯文本种子与合成演示截图，不含邮箱、授权码、地址、真实监控数据、数据库、图标或 exe
+- 公开仓库只有源码、纯文本种子、图标源图与合成演示截图，不含邮箱、授权码、地址、真实监控数据、数据库或 exe
 - 监控请求模拟普通浏览器访问，请把频率设在目标站点能接受的范围内
 
 ## 常见问题
@@ -138,6 +160,8 @@ build.bat               # 打包到 dist\CigarMonitor\
 - **商品显示「未知」**：多为网络或反爬拦截，日志里有原因；Cloudflare 站点会自动重试，仍失败可降低频率
 - **端口被占用**：桌面版自动从 5050 起顺延找可用端口
 - **自动更新**：仅桌面打包版生效，整包镜像替换安装目录；数据库与设置不动，失败静默跳过
+- **macOS 提示「无法打开，因为无法验证开发者」**：这是未公证的常规拦截，右键点 App 选「打开」即可，只需一次
+- **macOS 点关闭后程序还在**：这是设计行为，窗口隐藏、托盘继续监控；从菜单栏托盘图标「退出」才真正结束
 
 ## License
 

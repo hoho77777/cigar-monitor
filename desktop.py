@@ -8,6 +8,7 @@
 """
 import ctypes
 import os
+import subprocess
 import sys
 import time
 import threading
@@ -19,7 +20,7 @@ import webview
 import pystray
 from PIL import Image
 
-from config import WEB_HOST, WEB_PORT, DATA_DIR, RESOURCE_DIR
+from config import WEB_HOST, WEB_PORT, DATA_DIR, RESOURCE_DIR, IS_MAC
 import app as app_module
 from app import ensure_database, start_scheduler, stop_scheduler, run_flask
 
@@ -138,6 +139,23 @@ def wait_for_server(url, timeout=30):
     return False
 
 
+def _native_alert(message):
+    """平台原生模态告警框：Windows 用 MessageBox，macOS 用 AppleScript。"""
+    try:
+        if IS_MAC:
+            safe = message.replace("\\", "\\\\").replace('"', '\\"')
+            subprocess.run(
+                ["osascript", "-e",
+                 f'display dialog "{safe}" with title "雪茄库存监控" '
+                 'buttons {"好"} default button "好" with icon caution'],
+                check=False)
+        else:
+            ctypes.windll.user32.MessageBoxW(
+                0, message, "雪茄库存监控", 0x10)
+    except Exception:
+        pass
+
+
 def on_closing():
     # 真正退出时放行；否则隐藏窗口、后台托管
     if state["allow_close"]:
@@ -198,8 +216,7 @@ def main():
     url = f"http://{WEB_HOST}:{WEB_PORT}/"
     if not wait_for_server(url):
         stop_scheduler()
-        ctypes.windll.user32.MessageBoxW(
-            0, "本地服务启动失败，请检查安全软件是否拦截。", "雪茄库存监控", 0x10)
+        _native_alert("本地服务启动失败，请检查安全软件是否拦截。")
         sys.exit(1)
 
     tray_icon.run_detached()
@@ -215,8 +232,12 @@ def main():
         state["current_window"] = window
 
         try:
-            webview.start(gui="edgechromium", private_mode=False,
-                          storage_path=WEBVIEW_STORAGE)
+            if IS_MAC:
+                # macOS 使用系统 WebKit（cocoa 后端），无需指定 GUI
+                webview.start(private_mode=False, storage_path=WEBVIEW_STORAGE)
+            else:
+                webview.start(gui="edgechromium", private_mode=False,
+                              storage_path=WEBVIEW_STORAGE)
         except Exception as e:
             _write_crash("桌面窗口启动异常", e)
 

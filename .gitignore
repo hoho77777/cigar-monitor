@@ -10,6 +10,10 @@ dist/
 __pycache__/
 *.pyc
 
+# 虚拟环境
+.venv/
+venv/
+
 # 日志与临时文件
 *.log
 
@@ -17,6 +21,8 @@ __pycache__/
 assets/*
 # 保留 README 展示图（合成演示数据，不含任何个人数据）
 !assets/readme/
+# 图标源图必须入库：否则各平台构建会退回程序化占位图，导致 Win/mac 图标不一致
+!assets/icon-source.png
 
 # 旧版前端源码备份（仅本地留存，不进公开仓库）
 backup_1.2.1/
