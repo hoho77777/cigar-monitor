@@ -2,7 +2,7 @@
      width="1200" height="440" viewBox="0 0 1200 440"
      role="img" aria-labelledby="heroTitle heroDesc">
   <title id="heroTitle">CigarMonitor · 雪茄库存监控</title>
-  <desc id="heroDesc">本地部署的雪茄库存监控工具兼标准 MCP server：定时巡检商品页，缺货转有货时通过邮件、Windows 系统通知与微信三通道提醒，并在邮件里直接算好人民币到手价。</desc>
+  <desc id="heroDesc">本地部署的雪茄库存监控工具兼标准 MCP server：定时巡检商品页，缺货转有货时通过邮件、系统通知与微信三通道提醒，并在邮件里直接算好人民币到手价。提供 Windows 与 macOS 桌面版。</desc>
 
   <defs>
     <radialGradient id="warmGlow" cx="0.5" cy="0.5" r="0.5">
@@ -63,6 +63,6 @@
 
     <line x1="66" y1="326" x2="566" y2="326" stroke="#2A241C" stroke-width="1"/>
     <text x="66" y="366" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-          font-size="16" fill="#857767" letter-spacing="0.6">v1.3.1 · Python · Windows · MIT · 数据只存本机</text>
+          font-size="16" fill="#857767" letter-spacing="0.6">v1.3.2 · Python · Windows · macOS · MIT · 数据只存本机</text>
   </g>
 </svg>

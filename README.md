@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3.1-C8A45C" alt="version 1.3.1">
+  <img src="https://img.shields.io/badge/version-1.3.2-C8A45C" alt="version 1.3.2">
   <img src="https://img.shields.io/badge/MCP-server-3FD07A" alt="标准 MCP server">
   <img src="https://img.shields.io/badge/python-3.x-3776AB" alt="python 3">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-0078D4" alt="Windows / macOS">
@@ -47,13 +47,14 @@ CigarMonitor 是一个 Windows / macOS 桌面应用，也是一个标准 MCP ser
   <img src="./assets/readme/workflow.svg" width="100%" alt="四步流程：粘贴网址、定时巡检、解析库存状态、三通道提醒；只在缺货转有货时提醒一次，遇到 429 自动退避">
 </p>
 
-解析优先读页面的结构化数据（JSON-LD），读不到再用多语言关键词兜底（`in stock` / `add to cart` / `ausverkauft` / `rupture de stock` 等）；带 Cloudflare 防护的站点自动切换浏览器指纹抓取。价格同样先读 JSON-LD，再退回 `meta itemprop` 标记；一盒多少支从商品名的 `box of N` / `pack of N` / `N sticks` 里识别。
+解析优先读页面的结构化数据（JSON-LD），读不到再用多语言关键词兜底（`in stock` / `add to cart` / `ausverkauft` / `rupture de stock` 等）；带 Cloudflare 防护的站点自动切换浏览器指纹抓取。个别模板把库存写在非标准字段（例如 osCommerce 系的 `Delivery time: available`），由站点适配器专门读取；遇到必须浏览器执行 JS 才能通过的人机验证，会明确提示无法抓取，而不是一直显示「未知」。价格同样先读 JSON-LD，再退回 `meta itemprop` 标记；一盒多少支从商品名的 `box of N` / `pack of N` / `N sticks` 里识别。
 
 ## 核心能力
 
 **巡检与提醒**
 - 添加网址即自动识别商品名并完成首次检查，默认每 5 分钟轮询，界面可调到最小 30 秒
 - 只在「缺货 → 有货」时提醒一次，不重复刷屏；邮件、系统通知、微信 ClawBot 三通道同时送达
+- 微信主动下发要求近 24 小时内和 bot 有过对话：窗口过期时提醒进补发队列，重新激活或点「发送测试微信」后自动补上，超过 24 小时放弃并记日志
 - 站点返回 429 时按 5 → 10 → 20 分钟自动退避，不硬撞
 
 **MCP 接入**
@@ -63,7 +64,7 @@ CigarMonitor 是一个 Windows / macOS 桌面应用，也是一个标准 MCP ser
 **价格与品牌**
 - 到手计算器支持 8 种货币，海关计征汇率取中国货币网官方中间价（每月更新），实时市场汇率自动获取并本地缓存，按 50% 烟草综合税率计算，断网回退缓存
 - 邮件自动带入商品原价、人民币货值、预估税费、到手总价与到手单价；计税价超 ¥2,000 提示寄递限值与退运风险，税额 ≤¥50 提示可能免征
-- 内置 34 个雪茄品牌中英文词库，简称全称都认；三通道统一显示「英文（中文简称）」，首页单款有货只显示中文简称
+- 内置 67 个雪茄品牌中英文词库（Habanos 官方在售古巴品牌全部覆盖，另含 32 个非古巴厂牌），简称全称都认；三通道统一显示「英文（中文简称）」，首页单款有货只显示中文简称
 
 **本地与维护**
 - SQLite 存本机，关窗口转托盘继续监控，托盘菜单「退出」才真正结束进程
@@ -76,7 +77,7 @@ CigarMonitor 是一个 Windows / macOS 桌面应用，也是一个标准 MCP ser
 
 **Windows**
 
-1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases/latest) 下载 `CigarMonitor_v1.3.1_setup.exe` 双击安装；免安装版 `CigarMonitor_v1.3.1_windows.zip` 解压后，`CigarMonitor.exe` 与 `_internal` 必须保持同级
+1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases/latest) 下载 `CigarMonitor_v1.3.2_1_setup_windows.exe` 双击安装；免安装版 `CigarMonitor_v1.3.2_2_portable_windows.zip` 解压后，`CigarMonitor.exe` 与 `_internal` 必须保持同级
 2. 打开 `CigarMonitor.exe`，在「发信邮箱与监控设置」填入邮箱账号与 **SMTP 授权码**，保存后点「发送测试邮件」验证
 3. 需要微信推送就在下方扫码绑定 ClawBot
 4. 顶部粘贴商品网址即可添加监控，列表默认为空，由你自行添加
@@ -86,7 +87,7 @@ CigarMonitor 是一个 Windows / macOS 桌面应用，也是一个标准 MCP ser
 
 **macOS**
 
-1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases) 下载 `CigarMonitor-mac-1.3.1.zip`，解压后把 `CigarMonitor.app` 拖进「应用程序」文件夹
+1. 到 [Releases](https://github.com/hoho77777/cigar-monitor/releases/latest) 下载 `CigarMonitor_v1.3.2_3_macos_arm64.zip`，解压后把 `CigarMonitor.app` 拖进「应用程序」文件夹
 2. **首次打开**：在「应用程序」里右键点 `CigarMonitor.app` → 选「打开」→ 弹窗再点「打开」。因未做 Apple 公证，双击可能被拦一次，右键打开后就不再提示
 3. 之后启动、添加监控、发测试邮件的步骤与 Windows 版一致
 4. 窗口左上角红灯只是隐藏窗口，监控仍在后台跑；从菜单栏托盘图标可恢复窗口或退出；程序在 Dock 与菜单栏都会出现
@@ -157,7 +158,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 - **测试邮件发不出去**：核对授权码、确认 SMTP 已开启、主机端口加密方式与预设一致
 - **AI 助手扫描不出来**：弹窗会重新扫描进程与常见安装路径；仍不显示就用下方手动接入，不影响使用
-- **商品显示「未知」**：多为网络或反爬拦截，日志里有原因；Cloudflare 站点会自动重试，仍失败可降低频率
+- **商品显示「未知」**：多为网络或反爬拦截，日志里有原因；Cloudflare 站点会自动重试，仍失败可降低频率；提示「需浏览器执行 JS」的站点属于人机验证，纯 HTTP 抓不到，建议换其他店铺的同款链接
 - **端口被占用**：桌面版自动从 5050 起顺延找可用端口
 - **自动更新**：仅桌面打包版生效，整包镜像替换安装目录；数据库与设置不动，失败静默跳过
 - **macOS 提示「无法打开，因为无法验证开发者」**：这是未公证的常规拦截，右键点 App 选「打开」即可，只需一次
