@@ -93,6 +93,14 @@ body{
 .btn svg{width:18px;height:18px}
 .btn small{font-weight:400;opacity:.7;font-size:12px}
 
+/* ===== 更新日志 ===== */
+.logs{display:grid;gap:0}
+.log-item{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;padding:16px 0;border-top:1px solid var(--line)}
+.log-item:first-child{border-top:0;padding-top:0}
+.log-tag{font-size:11.5px;font-weight:600;color:#8a6d1f;background:#fdf6e3;border:1px solid #f0e3c0;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.log-txt{font-size:14.5px;font-weight:600}
+.log-txt span{display:block;font-size:13px;font-weight:400;color:var(--sub);margin-top:5px;line-height:1.65}
+
 footer{margin-top:64px;text-align:center;font-size:13px;color:var(--sub)}
 footer a{color:var(--ink);text-decoration:none;font-weight:500}
 
@@ -127,7 +135,7 @@ footer a{color:var(--ink);text-decoration:none;font-weight:500}
       <div class="role">雪茄库存监控工具</div>
       <p class="desc">定时盯库存，缺货转有货立即通过邮件、系统通知与微信提醒；同时是标准 MCP server，可直接接入 AI 用语音或文字操作。</p>
       <div class="meta">
-        <span>v1.3.1</span><span class="sep">·</span>
+        <span>v1.3.2</span><span class="sep">·</span>
         <span>Python</span><span class="sep">·</span>
         <span>Windows / macOS</span><span class="sep">·</span>
         <span>数据存本机</span>
@@ -197,7 +205,7 @@ footer a{color:var(--ink);text-decoration:none;font-weight:500}
       <div class="fitem">
         <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></div>
         <h4>品牌中文化</h4>
-        <p>内置 34 个品牌中英文词库，首页显示纯中文简称，通知统一显示「英文（中文简称）」。</p>
+        <p>内置 67 个品牌中英文词库（古巴官方在售品牌全部覆盖），首页显示纯中文简称，通知统一显示「英文（中文简称）」。</p>
       </div>
       <div class="fitem">
         <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M17 7H9.5a2.5 2.5 0 0 0 0 5h5a2.5 2.5 0 0 1 0 5H7"/></svg></div>
@@ -207,7 +215,7 @@ footer a{color:var(--ink);text-decoration:none;font-weight:500}
       <div class="fitem">
         <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18"/></svg></div>
         <h4>三通道提醒</h4>
-        <p>仅在缺货转有货时触发，HTML 邮件、系统通知、微信 ClawBot 同时送达，不重复刷屏。</p>
+        <p>仅在缺货转有货时触发，HTML 邮件、系统通知、微信 ClawBot 同时送达；微信 24 小时窗口过期会自动补发，不重复刷屏。</p>
       </div>
       <div class="fitem">
         <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
@@ -217,33 +225,66 @@ footer a{color:var(--ink);text-decoration:none;font-weight:500}
     </div>
   </section>
 
+  <!-- ===== 最近更新 ===== -->
+  <section class="features">
+    <h2 class="section-head">最近更新 · v1.3.2</h2>
+    <div class="card">
+      <div class="logs">
+        <div class="log-item">
+          <span class="log-tag">微信</span>
+          <p class="log-txt">推送不再悄悄丢掉
+            <span>主动下发需要 24 小时内有过对话。窗口过期时提醒进补发队列，重新激活或点「发送测试微信」后自动补上；提醒标题恢复「【雪茄到货提醒】+ 问候语 + 中文品牌简称」。</span>
+          </p>
+        </div>
+        <div class="log-item">
+          <span class="log-tag">站点</span>
+          <p class="log-txt">新增 osCommerce 适配
+            <span>tecon-gmbh.de 这类把库存写在「Delivery time: available」的站点也能读；必须浏览器执行 JS 才能过的人机验证会明确提示无法抓取，不再一直显示「未知」。</span>
+          </p>
+        </div>
+        <div class="log-item">
+          <span class="log-tag">品牌</span>
+          <p class="log-txt">词库 34 → 67
+            <span>补齐 Guantanamera 等古巴品牌，Habanos 官方在售品牌全部覆盖；另加 32 个非古巴厂牌，修复 Flor de Cano、La Gloria Cubana、Saint Luis Rey 的长期漏识别。</span>
+          </p>
+        </div>
+        <div class="log-item">
+          <span class="log-tag">更新器</span>
+          <p class="log-txt">按平台选包
+            <span>Windows 与 macOS 资产同处一个 Release 时，各自只取本平台的包，不会误下另一平台的安装包。</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ===== 下载 ===== -->
   <section class="download">
-    <h3 class="dl-title">下载 CigarMonitor v1.3.1</h3>
+    <h3 class="dl-title">下载 CigarMonitor v1.3.2</h3>
     <p class="dl-sub">Windows 与 macOS 功能一致 · 数据独立存放，更新与卸载均不丢失</p>
     <div class="dl-grid">
       <div class="dl-col">
-        <div class="dl-plat">Windows <span class="ver">v1.3.1</span></div>
-        <a class="btn btn-primary" href="https://github.com/hoho77777/cigar-monitor/releases/download/v1.3.1/CigarMonitor_v1.3.1_setup.exe">
+        <div class="dl-plat">Windows <span class="ver">v1.3.2</span></div>
+        <a class="btn btn-primary" href="https://github.com/hoho77777/cigar-monitor/releases/download/v1.3.2/CigarMonitor_v1.3.2_1_setup_windows.exe">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>
-          下载安装版 <small>setup.exe</small>
+          下载安装版 <small>setup_windows.exe</small>
         </a>
-        <a class="btn btn-ghost" href="https://github.com/hoho77777/cigar-monitor/releases/download/v1.3.1/CigarMonitor_v1.3.1_windows.zip">
+        <a class="btn btn-ghost" href="https://github.com/hoho77777/cigar-monitor/releases/download/v1.3.2/CigarMonitor_v1.3.2_2_portable_windows.zip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/></svg>
-          下载免安装版 <small>windows.zip</small>
+          下载免安装版 <small>portable_windows.zip</small>
         </a>
         <p class="dl-mini">安装版免 UAC、支持就地升级；免安装版解压即用。</p>
       </div>
       <div class="dl-col">
-        <div class="dl-plat">macOS <span class="ver">v1.3.1-mac · arm64</span></div>
-        <a class="btn btn-primary" href="https://github.com/hoho77777/cigar-monitor/releases/download/v1.3.1-mac/CigarMonitor-mac-1.3.1.zip">
+        <div class="dl-plat">macOS <span class="ver">v1.3.2 · arm64</span></div>
+        <a class="btn btn-primary" href="https://github.com/hoho77777/cigar-monitor/releases/download/v1.3.2/CigarMonitor_v1.3.2_3_macos_arm64.zip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>
-          下载 Mac 版 <small>mac-1.3.1.zip</small>
+          下载 Mac 版 <small>macos_arm64.zip</small>
         </a>
         <p class="dl-mini">Apple Silicon · 系统自带 WebKit，无需额外运行时。未做 Apple 公证：首次请<span class="key">右键 → 打开</span>，弹窗再确认「打开」，之后不再提示。</p>
       </div>
     </div>
-    <p class="dl-note">Intel 芯片 Mac 暂无对应构建 · Windows 用户继续使用 v1.3.1 即可，无需改动</p>
+    <p class="dl-note">Intel 芯片 Mac 暂无对应构建 · Windows 与 macOS 均已支持应用内自动更新</p>
   </section>
 
   <footer>
