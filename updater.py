@@ -46,10 +46,53 @@ def _http_get(url):
         return resp.read()
 
 
+def _platform_keywords():
+    if sys.platform.startswith("win"):
+        return ("windows",)
+    if sys.platform == "darwin":
+        return ("macos", "mac", "osx", "darwin")
+    return ("linux",)
+
+
+def _pick_asset(assets):
+    """按当前平台挑整包，返回 (下载地址, 是否需手动安装, 资产名)。
+
+    Windows 只接受名字含 windows 的 zip（并兼容早期不带平台词的 onedir zip）；
+    macOS 只接受名字含 macos/mac/osx 的包，dmg/pkg 视为需要手动安装。
+    绝不把另一平台的包返回给当前平台。注意 1.3.1 及更早客户端没有这层过滤
+    （取资产列表里第一个 zip），所以发布时仍要保证 Windows 包排在前面。
+    """
+    kws = _platform_keywords()
+    lower = [(a, str(a.get("name") or "").lower()) for a in assets]
+
+    # 1. 名字带平台标识的 zip：自动更新用
+    for a, n in lower:
+        if n.endswith(".zip") and any(k in n for k in kws):
+            return a.get("browser_download_url"), False, n
+
+    # 2. Windows 兼容旧命名（不带平台词，也不含其它平台词）
+    if sys.platform.startswith("win"):
+        others = ("macos", "mac", "darwin", "osx", "linux")
+        for a, n in lower:
+            if n.endswith(".zip") and not any(k in n for k in others):
+                return a.get("browser_download_url"), False, n
+        for a, n in lower:
+            if n.endswith(".exe") and "setup" not in n:
+                return a.get("browser_download_url"), False, n
+
+    # 3. macOS：dmg / pkg 只能手动安装
+    for a, n in lower:
+        if n.endswith((".dmg", ".pkg")):
+            return a.get("browser_download_url"), True, n
+
+    return None, False, ""
+
+
 def check_for_update():
     """返回更新信息 dict；无更新或出错时返回 None。
-    dict 字段：latest / current / notes / download_url / html_url。
-    download_url 指向 onedir 的 zip 整包（兼容历史 .exe 资产）。"""
+    dict 字段：latest / current / notes / download_url / html_url / asset / manual_install。
+    download_url 指向当前平台的整包；manual_install=True 时表示只有 dmg/pkg
+    这类需手动安装的包，不能走整包替换流程。"""
     try:
         data = json.loads(_http_get(API_URL).decode("utf-8"))
     except Exception:
@@ -61,33 +104,7 @@ def check_for_update():
 
     latest = tag.lstrip("vV").strip()
     assets = data.get("assets", []) or []
-    download_url = None
-
-    def _name(a):
-        return str(a.get("name") or "").lower()
-
-    def _is_mac_asset(a):
-        n = _name(a)
-        return "mac" in n or "darwin" in n or "osx" in n
-
-    if IS_MAC:
-        # macOS：必须选名字含 mac/darwin/osx 的 zip，避免误下 Windows 整包
-        for a in assets:
-            if _name(a).endswith(".zip") and _is_mac_asset(a):
-                download_url = a.get("browser_download_url")
-                break
-    else:
-        # Windows：选 zip 但排除 Mac 资产，避免跨平台误更新
-        for a in assets:
-            if _name(a).endswith(".zip") and not _is_mac_asset(a):
-                download_url = a.get("browser_download_url")
-                break
-        # 兼容：历史单 exe 资产
-        if not download_url:
-            for a in assets:
-                if _name(a).endswith(".exe"):
-                    download_url = a.get("browser_download_url")
-                    break
+    download_url, manual, asset_name = _pick_asset(assets)
 
     if _version_tuple(latest) <= _version_tuple(APP_VERSION):
         return None
@@ -98,6 +115,8 @@ def check_for_update():
         "notes": str(data.get("body") or "").strip(),
         "html_url": data.get("html_url"),
         "download_url": download_url,
+        "asset": asset_name,
+        "manual_install": manual,
     }
 
 
@@ -289,7 +308,7 @@ def apply_update(download_url, quit_callback=None, progress=None):
     if not getattr(sys, "frozen", False):
         raise RuntimeError("开发模式下不执行自动更新，请使用打包后的程序")
     if not download_url:
-        raise RuntimeError("该版本未提供可下载的更新包（zip）")
+        raise RuntimeError("该版本未提供当前平台的自动更新包，请到 Release 页面手动下载")
 
     if IS_MAC:
         target_app = _current_app_bundle()

@@ -20,7 +20,7 @@ import re
 import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import quote
 
 import requests
@@ -35,6 +35,9 @@ CHANNEL_VERSION = "cigar-monitor-1.2.0"
 BOT_TYPE = "3"
 LOGIN_TTL = 5 * 60                        # 单次扫码会话有效期（秒）
 TOKEN_POOL_SIZE = 20
+# 微信侧 bot 主动下发窗口：只有用户近 24 小时内给 ClawBot 发过消息，
+# context_token 才有效；超过这个时长必须由用户重新发消息激活。
+TOKEN_TTL = 24 * 60 * 60
 POLL_TIMEOUT = 40                         # get_qrcode_status / getupdates 长轮询
 API_TIMEOUT = 15
 
@@ -124,6 +127,68 @@ def get_state(settings=None):
     return state
 
 
+# ---- context_token 新鲜度 ----
+# 旧版本把 token 存成裸字符串、且每次轮询都刷新 last_token_at，
+# 导致 token 早已过期、界面却一直显示「通道就绪」。这里统一改成
+# {"t": token, "at": 收割时间} 结构，并按 24 小时窗口判定有效性。
+
+def _parse_dt(value):
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%d %H:%M:%S")
+    except (TypeError, ValueError):
+        return None
+
+
+def _token_items(state):
+    """把 state["tokens"] 归一化成 [(token, 收割时间字符串)]，兼容旧格式。
+
+    裸字符串（旧版本数据）没有可靠时间戳，只能在首次运行时按未知处理：
+    用 state["last_token_at"] 兜底，仍然拿不到就算过期（宁可提示重新激活，
+    也不要拿一个注定返回 -2 的 token 去假装发送成功）。
+    """
+    legacy_at = str(state.get("last_token_at") or "")
+    items = []
+    for raw in state.get("tokens") or []:
+        if isinstance(raw, dict):
+            tok, at = raw.get("t"), raw.get("at")
+        else:
+            tok, at = raw, legacy_at
+        if tok:
+            items.append((str(tok), str(at or "")))
+    return items
+
+
+def _fresh_tokens(state, ttl=TOKEN_TTL):
+    """只返回仍在主动下发窗口内的 token（最新的排在最后）。"""
+    now = datetime.now()
+    fresh = []
+    for tok, at in _token_items(state):
+        dt = _parse_dt(at)
+        if dt and (now - dt).total_seconds() < ttl:
+            fresh.append((tok, at))
+    return fresh
+
+
+def _set_tokens(state, items):
+    state["tokens"] = [{"t": tok, "at": at} for tok, at in items][-TOKEN_POOL_SIZE:]
+
+
+def _prune_tokens(state):
+    """剔除过期 token，返回保留下来的数量（调用方负责 save_state）。"""
+    fresh = _fresh_tokens(state)
+    _set_tokens(state, fresh)
+    state["token_count"] = len(fresh)
+    return len(fresh)
+
+
+def _drop_token(state, token):
+    """发送时被微信判定失效的 token 立刻移除，避免状态页继续显示就绪。"""
+    rest = [(tok, at) for tok, at in _token_items(state) if tok != token]
+    _set_tokens(state, rest)
+    state["token_count"] = len(rest)
+    return len(rest)
+
+
 def _save_binding(cred):
     """写入新凭证并清空会话状态（锁内原子完成，避免与收割线程交错）。"""
     with _state_lock:
@@ -143,19 +208,29 @@ def clear_binding():
 
 
 def status():
-    """供设置页展示的绑定/保活状态，不发起任何网络请求。"""
+    """供设置页展示的绑定/保活状态，不发起任何网络请求。
+
+    就绪判定只认「仍在 24 小时窗口内的 token」：旧版本只要池子非空就显示
+    通道就绪，token 早已失效也照样亮绿灯，把推送失败藏在界面后面。
+    """
     settings = db.get_settings()
     cred = get_credential(settings)
     state = get_state(settings)
     if not cred.get("bot_token"):
         return {"bound": False, "ready": False, "enabled": False,
-                "last_token_at": "", "token_count": 0, "bound_at": "", "tip": "尚未绑定"}
-    token_count = len(state.get("tokens") or [])
-    last_at = state.get("last_token_at") or ""
-    if token_count:
-        tip = "通道就绪，有货时会自动推送到微信"
+                "last_token_at": "", "token_count": 0, "bound_at": "",
+                "expires_at": "", "tip": "尚未绑定"}
+    fresh = _fresh_tokens(state)
+    token_count = len(fresh)
+    last_at = max((at for _, at in fresh), default="")
+    expires_at = ""
+    if fresh:
+        newest = max(_parse_dt(at) for _, at in fresh if _parse_dt(at))
+        expires_at = (newest + timedelta(seconds=TOKEN_TTL)).strftime("%Y-%m-%d %H:%M:%S")
+        tip = "通道就绪，有货时会自动推送到微信（活跃窗口到 %s）" % expires_at[5:16]
     else:
-        tip = "还差一步：请在微信里给 ClawBot 发任意一条消息，界面会自动变为「通道就绪」"
+        tip = ("需要激活：请在微信里给 ClawBot 发任意一条消息"
+               "（微信只允许在最近 24 小时内有消息往来的会话里主动推送）")
     return {
         "bound": True,
         "ready": bool(token_count),
@@ -164,6 +239,7 @@ def status():
         "bound_at": cred.get("bound_at", ""),
         "last_token_at": last_at,
         "token_count": token_count,
+        "expires_at": expires_at,
         "tip": tip,
     }
 
@@ -322,20 +398,34 @@ def _merge_updates(res, token_used=None):
         if token_used and cred.get("bot_token") != token_used:
             return len(state.get("tokens") or [])
         if isinstance(res, dict):
-            pool = list(state.get("tokens") or [])
+            items = _token_items(state)
+            known = {tok for tok, _ in items}
+            now_str = _now()
+            new_count = 0
             for m in res.get("msgs") or []:
                 tok = m.get("context_token") if isinstance(m, dict) else None
-                if tok and tok not in pool:
-                    pool.append(tok)
-            if pool:
-                state["last_token_at"] = _now()
-            state["tokens"] = pool[-TOKEN_POOL_SIZE:]
+                if not tok:
+                    continue
+                tok = str(tok)
+                if tok in known:
+                    # 同一个 token 再次出现说明会话仍活跃，刷新它的收割时间
+                    items = [(t, now_str if t == tok else a) for t, a in items]
+                else:
+                    items.append((tok, now_str))
+                    known.add(tok)
+                    new_count += 1
+            # 只保留 24 小时窗口内的 token；last_token_at 只在真的收到新 token
+            # 时更新，避免每次轮询都把它刷成"刚刚"，让状态页误判为活跃。
+            _set_tokens(state, _fresh_tokens({"tokens": [{"t": t, "at": a} for t, a in items]}))
+            if new_count:
+                state["last_token_at"] = now_str
             if res.get("get_updates_buf"):
                 state["buf"] = res["get_updates_buf"]
             state["last_ret"] = res.get("ret", 0)
         state["last_poll"] = _now()
+        state["token_count"] = len(_fresh_tokens(state))
         save_state(state)
-        return len(state.get("tokens") or [])
+        return state["token_count"]
 
 
 def _keepalive_loop():
@@ -383,26 +473,39 @@ def refresh_tokens_once():
         res = _fetch_updates(cred, get_state(settings).get("buf"), timeout=5)
         return _merge_updates(res, token_used=cred["bot_token"])
     except Exception:
-        return len(get_state().get("tokens") or [])
+        return len(_fresh_tokens(get_state()))
 
 
 # ---------------- 消息发送 ----------------
-def stock_message(product):
-    """生成推送到微信的纯文本（链接在微信中自动可点）。"""
+def stock_message(product, resend=False):
+    """生成推送到微信的纯文本（链接在微信中自动可点）。
+
+    格式要点：
+    1. 首行 = 「【雪茄到货提醒】」+ stock_greeting()，问候语与品牌标签
+       仍由 stock_greeting() 决定，和邮件主题同源。
+    2. 时间取发送这一刻（datetime.now()）。旧版直接取 last_checked，
+       一旦推送有延迟、重试或补发，正文日期就会停在当初那次检查的
+       日期上，看起来像日期坏了。
+    3. 字段之间用空行分隔：微信 ClawBot 的文本气泡会把**单个换行**
+       折叠成空格（旧消息里 "…状态：有货 In Stock 检查时间：…" 连成
+       一句就是这个原因），空行才会被保留。
+    """
     from notifier import stock_greeting
     name = (product.get("name") or product.get("url") or "").strip()
     url = (product.get("url") or "").strip()
-    checked = (product.get("last_checked") or _now()).strip()
+    checked = _now()
     greet = stock_greeting(product)
     lines = [
         "【雪茄到货提醒】" + greet,
         "",
         "商品：" + name,
+        "",
         "状态：有货 In Stock",
+        "",
         "检查时间：" + checked,
     ]
     if url:
-        lines.append("链接：" + url)
+        lines += ["", "链接：" + url]
     lines += ["", "本地雪茄库存监控 · 自动推送"]
     return "\n".join(lines)
 
@@ -438,10 +541,12 @@ def _friendly_error(err, had_token):
     """把 iLink 原始错误码翻译成用户能照做的动作。"""
     low = (err or "").lower()
     if not had_token or "prepare failed" in low or "[-2]" in err:
-        return ("会话还未激活：请在微信里给 ClawBot 发任意一条消息，"
-                "等界面显示「通道就绪」后重试；有货提醒仍会由邮件与系统通知正常发出")
+        return ("会话还未激活（微信只允许在最近 24 小时内有消息往来的会话里主动推送）："
+                "请在微信里给 ClawBot 发任意一条消息，再点「发送测试微信」；"
+                "有货提醒仍会由邮件与系统通知正常发出，激活后会自动补发漏掉的提醒")
     if re.search(r"-14|session|timeout|expire", low):
-        return "推送会话已过期，请在微信里给 ClawBot 发任意一条消息刷新后重试"
+        return ("推送窗口已过期（超过 24 小时）：请给 ClawBot 发一条消息刷新会话，"
+                "激活后会自动补发漏掉的提醒")
     return "ClawBot 推送失败：%s" % (err or "未知原因")
 
 
@@ -455,38 +560,73 @@ def send_text(text, auto_refresh=True):
         return False, "绑定凭证不完整，请重新扫码"
 
     state = get_state(settings)
-    tokens = list(reversed(state.get("tokens") or []))
+    tokens = list(reversed(_fresh_tokens(state)))
     if not tokens and auto_refresh:
         try:
             res = _fetch_updates(cred, state.get("buf"), timeout=5)
             _merge_updates(res, token_used=cred["bot_token"])
         except Exception:
             pass
-        tokens = list(reversed(get_state().get("tokens") or []))
+        state = get_state()
+        tokens = list(reversed(_fresh_tokens(state)))
     if not tokens:
-        # 刚绑定、用户还没在微信里给 bot 发过消息时没有 context_token，
+        # 24 小时窗口内没有用户消息 → 没有可用 context_token，
         # iLink 必然返回 -2 prepare failed。不再发注定失败的请求，
         # 直接给出可执行的指引，由邮件 / 系统通知兜底。
         return False, _friendly_error("", False)
 
     last_err = ""
-    for token in tokens[:5]:
+    attempts = []
+    # _fresh_tokens 返回 (token, 收割时间) 二元组，这里必须解包成字符串再用，
+    # 否则 context_token 会被序列化成数组，iLink 直接回 [-1] invalid request。
+    for token, _tok_at in tokens[:5]:
         try:
             res = _send_once(cred, text, token)
         except Exception as e:
             last_err = str(e)
+            attempts.append({"token": token[:10], "resp": last_err[:160]})
             continue
+        # 记录每次尝试的原始返回，便于排查 [-1] invalid request 这类拒绝
+        if isinstance(res, dict):
+            attempts.append({
+                "token": token[:10],
+                "ret": res.get("ret"),
+                "errmsg": str(res.get("errmsg") or res.get("message") or "")[:120],
+                "http": res.get("_http"),
+                "mid": bool(res.get("message_id")),
+            })
         success = bool(res) and (
             bool(res.get("message_id"))
             or (res.get("ret") in (0, None) and not res.get("errmsg")
                 and not res.get("_http") and not res.get("_error"))
         )
         if success:
+            with _state_lock:
+                latest = get_state()
+                _prune_tokens(latest)
+                latest["last_sent_at"] = _now()
+                save_state(latest)
             return True, "已送达微信 ClawBot"
         last_err = _error_text(res)
-        if re.search(r"-14|session|timeout|expire", last_err, re.I):
+        # 该 token 已被微信判定失效：立刻从池子里摘掉，状态页才不会继续假报「就绪」
+        if re.search(r"-14|session|timeout|expire|prepare failed|\[-2\]", last_err, re.I):
+            with _state_lock:
+                latest = get_state()
+                left = _drop_token(latest, token)
+                latest["last_error"] = last_err[:120]
+                latest["last_error_at"] = _now()
+                latest["last_poll"] = latest.get("last_poll") or ""
+                save_state(latest)
+            if left:
+                continue
             break
 
+    with _state_lock:
+        latest = get_state()
+        latest["last_error"] = (last_err or "未知原因")[:120]
+        latest["last_error_at"] = _now()
+        latest["last_send_raw"] = attempts[-5:]
+        save_state(latest)
     return False, _friendly_error(last_err, True)
 
 

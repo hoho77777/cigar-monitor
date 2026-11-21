@@ -42,6 +42,7 @@ DOMAIN_ADAPTERS = {
     "c-cigars.de": "shopify",
     "alpscigar.com": "woocommerce",
     "thecigar.com": "prestashop",
+    "tecon-gmbh.de": "tecon",
 }
 
 
@@ -74,7 +75,10 @@ def _fetch_cloudflare(url):
         if r.status_code == 200 and "just a moment" not in r.text.lower():
             return r.text, r.status_code
         time.sleep(CF_RETRY_WAIT)
-    raise RuntimeError(f"Cloudflare 挑战未通过（最后 HTTP {last_status}）")
+    raise RuntimeError(
+        f"站点启用了 Cloudflare 人机验证（需浏览器执行 JS，最后 HTTP {last_status}），"
+        "程序无法抓取，建议换用其他站点或手动查看"
+    )
 
 
 # 已知稳定拦截/指纹限流的站点，直接走浏览器指纹，省去一次失败请求
@@ -326,6 +330,33 @@ def _check_shopify(soup):
     return None, "未找到库存标记"
 
 
+def _check_tecon(soup):
+    """tecon-gmbh.de（Estervals Pipe House）：库存写在 "Delivery time:" 行。"""
+    for b in soup.find_all(["b", "strong"]):
+        label = re.sub(r"\s+", " ", b.get_text(" ", strip=True)).lower()
+        if "delivery time" not in label:
+            continue
+        row = b.find_parent("div", class_="details_row") or b.parent
+        cells = row.select("div.details_cell") if row is not None else []
+        if len(cells) < 2:
+            return None, "配送状态行结构异常"
+        val = re.sub(r"\s+", " ", cells[1].get_text(" ", strip=True))
+        low = val.lower()
+        if any(k in low for k in ("not available", "not in stock", "sold out",
+                                  "ausverkauft", "vergriffen", "nicht verfügbar")):
+            return "out_of_stock", f"配送状态：{val}"
+        if any(k in low for k in ("available", "in stock", "auf lager", "verfügbar")):
+            return "in_stock", f"配送状态：{val}"
+        if val:
+            return None, f"配送状态未识别：{val}"
+        return None, "配送状态为空"
+    # 兜底：整页可见文本里找配送状态
+    visible = re.sub(r"\s+", " ", soup.get_text(" ", strip=True)).lower()
+    if "delivery time: available" in visible:
+        return "in_stock", "配送状态：available"
+    return None, "未找到配送状态字段"
+
+
 def _split_keywords(raw):
     return [x.strip().lower() for x in re.split(r"[;,，；\n]+", raw or "") if x.strip()]
 
@@ -383,6 +414,8 @@ def check_product(product):
         status, detail = _check_prestashop(soup)
     elif adapter == "shopify":
         status, detail = _check_shopify(soup)
+    elif adapter == "tecon":
+        status, detail = _check_tecon(soup)
     elif adapter == "jsonld":
         status = check_jsonld(soup)
         detail = "JSON-LD 结构化数据" if status else "JSON-LD 中无库存信息"

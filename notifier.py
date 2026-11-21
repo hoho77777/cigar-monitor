@@ -117,12 +117,25 @@ def brand_label(product):
     return f"{en}（{zh}）" if zh else en
 
 
+def brand_zh(product):
+    """中文品牌简称（用于问候语/标题）：有译名只给译名，没有才回退英文。"""
+    b = (product.get("tag_buckets") or {}).get("brand") or []
+    en = b[0] if b else ""
+    if not en:
+        return ""
+    return brands.short_zh(en) or en
+
+
 def stock_greeting(product, now=None):
-    """针对单个有货商品生成问候语（与前端文案一致），用于邮件标题/正文。"""
+    """针对单个有货商品生成问候语（与前端文案一致），用于邮件标题/正文/微信首行。
+
+    品牌只保留中文简称（如 Quintero → 金特罗），英文名不再出现在标题里；
+    正文里的「商品」字段仍是完整英文名，便于核对。
+    """
     now = now or datetime.now()
     h = now.hour
     night = h < 5 or h >= 22
-    brand = brand_label(product)
+    brand = brand_zh(product)
     if night:
         return (f"夜深了，{brand}雪茄有货，抢完再睡！" if brand
                 else "夜深了，有一款雪茄有货，抢完再睡！")

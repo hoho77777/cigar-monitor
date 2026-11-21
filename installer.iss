@@ -1,7 +1,7 @@
 ; CigarMonitor 用户级安装脚本（Inno Setup 6）
 ; 固定 AppId，后续版本沿用，以便识别为同一应用并就地升级。
 #define MyAppName "CigarMonitor"
-#define MyAppVersion "1.3.1"
+#define MyAppVersion "1.3.2"
 #define MyAppPublisher "hoho77777"
 #define MyAppExe "CigarMonitor.exe"
 
@@ -16,7 +16,7 @@ DefaultDirName={localappdata}\Programs\CigarMonitor
 DefaultGroupName=CigarMonitor
 DisableProgramGroupPage=yes
 OutputDir=dist
-OutputBaseFilename=CigarMonitor_v1.3.1_setup
+OutputBaseFilename=CigarMonitor_v1.3.2_setup
 SetupIconFile=assets\cigar.ico
 UninstallDisplayIcon={app}\{#MyAppExe}
 Compression=lzma2

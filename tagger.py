@@ -9,13 +9,23 @@ import re
 import brands
 
 # 品牌（按需扩充；多词品牌如 Sancho Panza 由 brands.EN_CANONICAL 归一）
+# 只收“可判别”的词干：像 room/estate/heads 这类在站点 URL 里也常见的词不进集合，
+# 避免给商品打上错误品牌标签。
 BRANDS = {
     "punch", "sancho", "panza", "cohiba", "montecristo", "romeo", "julieta",
     "bolivar", "partagas", "trinidad", "hoyo", "monterrey", "quintero",
     "vegas", "robaina", "cuaba", "diplomaticos", "juan", "lopez", "rafael",
-    "gonzalez", "cristobal", "rey", "davidoff", "camacho",
+    "gonzalez", "cristobal", "mundo", "davidoff", "camacho",
     "padron", "arturo", "fuente", "macanudo", "upmann", "larranaga",
-    "veguero",
+    "veguero", "guantanamera",
+    # 古巴：补全此前漏识别品牌的词干
+    "ramon", "allones", "cano", "gloria", "cubana", "quai", "orsay",
+    "lui", "stato", "statos", "piedra",
+    # 非古巴
+    "ashton", "aurora", "avo", "oliva", "drew", "fernandez", "pepin", "father",
+    "tatuaje", "illusione", "joya", "perdomo", "foundation", "dunbarton",    "hvc", "caldwell", "crowned", "patel", "rocky", "vegafina", "quorum",
+    "tomas", "gurkha", "villiger", "bering", "bahia", "cao", "nub",
+    "alec", "bradley", "torano", "sherman", "perla", "carrillo",
 }
 # 产地（仅过滤，不产生标签）
 ORIGINS = {

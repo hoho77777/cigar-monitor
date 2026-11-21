@@ -46,6 +46,83 @@ system_notify = None
 # 自动更新后用于彻底退出应用的回调（desktop.py 注册）
 update_quit = None
 
+# 微信补发队列：微信 24 小时窗口内推送失败时，等用户重新激活后自动补发
+CLAWBOT_PENDING_KEY = "clawbot_pending"
+CLAWBOT_PENDING_TTL = 24 * 60 * 60
+
+
+def _now_str():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _pending_load():
+    try:
+        items = json.loads(db.get_settings().get(CLAWBOT_PENDING_KEY) or "[]")
+        return items if isinstance(items, list) else []
+    except (TypeError, ValueError):
+        return []
+
+
+def _pending_save(items):
+    db.save_settings({CLAWBOT_PENDING_KEY: json.dumps(items[:50], ensure_ascii=False)})
+
+
+def queue_clawbot_alert(product, reason=""):
+    """微信没送达时挂进补发队列，不指望它能"立刻成功"，但也不静默丢掉。"""
+    pid = product.get("id")
+    if not pid:
+        return
+    items = [i for i in _pending_load() if i.get("pid") != pid]
+    items.append({
+        "pid": pid,
+        "name": (product.get("name") or product.get("url") or "")[:120],
+        "found_at": product.get("last_checked") or "",
+        "at": _now_str(),
+        "reason": (reason or "")[:120],
+    })
+    _pending_save(items)
+
+
+def flush_clawbot_pending():
+    """通道恢复后补发漏掉的微信提醒；超过 24 小时的直接放弃并记日志。"""
+    items = _pending_load()
+    if not items:
+        return 0
+    if not clawbot.get_credential(db.get_settings()).get("bot_token"):
+        return 0
+    if not clawbot.status().get("ready"):
+        return 0
+
+    now = datetime.now()
+    sent, keep = 0, []
+    for item in items:
+        try:
+            added = datetime.strptime(str(item.get("at")), "%Y-%m-%d %H:%M:%S")
+        except (TypeError, ValueError):
+            added = None
+        if not added or (now - added).total_seconds() > CLAWBOT_PENDING_TTL:
+            db.add_log(item.get("pid"), "unknown", None,
+                       "微信补发超时放弃（超过 24 小时窗口）")
+            continue
+        product = db.get_product(item.get("pid")) or {}
+        if product.get("status") != "in_stock":
+            continue  # 已经不缺货或监控项已删除，不打扰
+        product = dict(product)
+        if item.get("found_at"):
+            product["last_checked"] = item["found_at"]
+        try:
+            ok, msg = clawbot.send_text(clawbot.stock_message(with_tags(product), resend=True))
+        except Exception as e:
+            ok, msg = False, str(e)
+        if ok:
+            sent += 1
+            db.add_log(item.get("pid"), "in_stock", None, "微信补发成功：已送达 ClawBot")
+        else:
+            keep.append(item)
+            db.add_log(item.get("pid"), "in_stock", None, f"微信补发失败: {msg}")
+    _pending_save(keep)
+    return sent
+
 
 # ---------------- 检查与通知核心 ----------------
 def perform_check(pid):
@@ -110,8 +187,12 @@ def perform_check(pid):
                     result["notified"] = True
                 else:
                     db.add_log(pid, status, code, f"微信通知失败: {msg}")
+                    # 邮件/系统通知成功不再代表"微信已送达"：挂进补发队列，
+                    # 用户重新激活会话后由 flush_clawbot_pending() 自动补上。
+                    queue_clawbot_alert(fresh, msg)
             except Exception as e:
                 db.add_log(pid, status, code, f"微信通知失败: {e}")
+                queue_clawbot_alert(fresh, str(e))
     return result
 
 
@@ -155,6 +236,14 @@ def run_check_all():
             _domain_backoff[domain] = {"level": level, "next_at": time.monotonic() + gap}
         elif state:
             _domain_backoff.pop(domain, None)
+
+    # 每轮检查末尾尝试补发此前因会话未激活而漏掉的微信提醒
+    try:
+        flushed = flush_clawbot_pending()
+        if flushed:
+            print(f"[clawbot] 补发成功 {flushed} 条")
+    except Exception as e:
+        print(f"[clawbot] 补发异常: {e}")
 
 
 def reschedule():
@@ -304,6 +393,10 @@ def check_all_now():
     for product in db.list_products():
         if product.get("enabled"):
             results.append(perform_check(product["id"]))
+    try:
+        flush_clawbot_pending()
+    except Exception:
+        pass
     return jsonify(results)
 
 
@@ -838,7 +931,9 @@ def ai_restart():
 @app.route("/api/clawbot/status")
 def clawbot_status():
     """绑定与保活状态（只读，不发起网络请求）。"""
-    return jsonify(clawbot.status())
+    data = clawbot.status()
+    data["pending"] = len(_pending_load())
+    return jsonify(data)
 
 
 @app.route("/api/clawbot/qr/start", methods=["POST"])
@@ -881,7 +976,12 @@ def clawbot_test():
         }), 400
     ok, msg = clawbot.send_text(clawbot.test_message())
     if ok:
-        return jsonify({"ok": True, "message": msg})
+        # 测试成功说明会话刚被激活：顺手把窗口期漏掉的提醒补上
+        try:
+            resent = flush_clawbot_pending()
+        except Exception:
+            resent = 0
+        return jsonify({"ok": True, "message": msg, "resent": resent})
     return jsonify({"error": msg}), 400
 
 
@@ -902,6 +1002,9 @@ def apply_update_route():
     info = updater.check_for_update()
     if not info or not info.get("download_url"):
         return jsonify({"error": "暂无可应用的更新"}), 400
+    if info.get("manual_install"):
+        return jsonify({"error": f"该版本只提供 {info.get('asset') or '安装包'}，"
+                                "需到 Release 页面手动安装"}), 400
     try:
         updater.apply_update(info["download_url"], quit_callback=update_quit)
     except Exception as e:

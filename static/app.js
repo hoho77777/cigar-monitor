@@ -571,7 +571,7 @@ async function loadClawbotStatus() {
       ? "已绑定微信 ClawBot（" + esc(s.account_id || "") + "）"
       : "未绑定微信 ClawBot";
     let tip = s.bound ? s.tip : "点「扫码绑定微信」，手机微信扫一次即可，无需账号或 API Key";
-    if (s.bound && s.last_token_at) tip += " · 最近会话 " + esc(s.last_token_at);
+    if (s.bound && s.pending) tip += " · 待补发 " + s.pending + " 条";
     setSlotText("clawbot-state-tip", tip);
     $("btn-clawbot-unbind").disabled = !s.bound;
     $("btn-clawbot-test").disabled = !s.bound;
